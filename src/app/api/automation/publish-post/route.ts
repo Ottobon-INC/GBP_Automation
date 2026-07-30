@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
 
     const { data: client, error: clientErr } = await supabaseAdmin
       .from('clients')
-      .select('*')
+      .select('*, gbp_automations(*)')
       .eq('id', clientId)
       .single();
 
@@ -170,11 +170,15 @@ export async function GET(request: NextRequest) {
 
     console.log(`Weekly Post Publisher: Identified unranked boost keywords:`, unrankedKeywords);
 
+    const gbpData = Array.isArray(client.gbp_automations) ? client.gbp_automations[0] : client.gbp_automations;
+    const primaryCategory = gbpData?.primary_category || client.primary_category || 'Business';
+    const targetKeywords = gbpData?.target_keywords || client.target_keywords || [];
+
     const postCopy = await generatePostCopy(
       client.company_name,
-      client.primary_category,
+      primaryCategory,
       client.service_area,
-      client.target_keywords || [],
+      targetKeywords,
       postBlueprint.topic,
       businessType,
       unrankedKeywords
@@ -182,7 +186,7 @@ export async function GET(request: NextRequest) {
 
     const ctaType = postBlueprint.cta === 'NONE' ? 'NONE' : 'LEARN_MORE';
     const ctaUrl = `https://maps.google.com/?cid=${google_location_id || 'mock_location_id'}`;
-    const mediaUrl = client.logo_url || client.building_image_url || null;
+    const mediaUrl = client.logo_url || gbpData?.building_image_url || client.building_image_url || null;
 
     console.log(`Publishing post to Google local posts for location ${google_location_id}...`);
     const publishResponse = await publishPostToGMB(

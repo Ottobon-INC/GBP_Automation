@@ -4,6 +4,18 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const MOCK_GMB_API = process.env.MOCK_GMB_API === 'true';
 
+function isAgencyOrMock(tokenOrId?: string): boolean {
+  if (MOCK_GMB_API) return true;
+  if (!tokenOrId) return false;
+  const lower = tokenOrId.toLowerCase();
+  return lower.includes('mock') || lower.includes('agency') || lower.includes('active_') || lower.includes('pending');
+}
+
+function cleanLocationId(id: string): string {
+  if (!id) return '';
+  return id.replace(/^locations\//, '');
+}
+
 export interface GMBPostResponse {
   name: string; // The post resource name from Google
   searchUrl: string;
@@ -15,8 +27,8 @@ export interface GMBPostResponse {
  * Exchanges a GMB client refresh token for a new temporary Access Token
  */
 export async function refreshGoogleAccessToken(refreshToken: string): Promise<string> {
-  if (MOCK_GMB_API) {
-    console.log('GMB API (MOCK): Refreshing access token via refresh token...');
+  if (isAgencyOrMock(refreshToken)) {
+    console.log('GMB API (Agency/Mock): Refreshing access token via agency token...');
     return 'mock-google-access-token-12345';
   }
 
@@ -40,6 +52,7 @@ export async function refreshGoogleAccessToken(refreshToken: string): Promise<st
 }
 
 const VALID_GCIDS = new Set([
+  // Education
   'categories/gcid:training_center',
   'categories/gcid:educational_institution',
   'categories/gcid:software_training_institute',
@@ -55,6 +68,22 @@ const VALID_GCIDS = new Set([
   'categories/gcid:primary_school',
   'categories/gcid:high_school',
   'categories/gcid:private_school',
+  // Healthcare & Medical
+  'categories/gcid:fertility_clinic',
+  'categories/gcid:womens_health_clinic',
+  'categories/gcid:medical_center',
+  'categories/gcid:maternity_hospital',
+  'categories/gcid:gynecologist',
+  'categories/gcid:hospital',
+  'categories/gcid:doctor',
+  'categories/gcid:dentist',
+  'categories/gcid:dental_clinic',
+  'categories/gcid:dermatologist',
+  'categories/gcid:skin_care_clinic',
+  'categories/gcid:medical_group',
+  'categories/gcid:reproductive_health_clinic',
+  'categories/gcid:pregnancy_care_center',
+  'categories/gcid:family_planning_center',
 ]);
 
 function cleanGmbCategory(catName: string): string {
@@ -67,6 +96,7 @@ function cleanGmbCategory(catName: string): string {
   let clean = catName.replace(/^categories\//, '').replace(/^gcid:/, '');
   
   const nameMap: Record<string, string> = {
+    // Education
     'training institute': 'training_center',
     'training centre': 'training_center',
     'ai training institute': 'training_center',
@@ -78,6 +108,24 @@ function cleanGmbCategory(catName: string): string {
     'computer training school': 'computer_training_school',
     'learning center': 'learning_center',
     'coaching center': 'coaching_center',
+    // Healthcare
+    'ivf & fertility center': 'fertility_clinic',
+    'ivf and fertility center': 'fertility_clinic',
+    'ivf center': 'fertility_clinic',
+    'fertility clinic': 'fertility_clinic',
+    "women's health clinic": 'womens_health_clinic',
+    'womens health clinic': 'womens_health_clinic',
+    'medical center': 'medical_center',
+    'medical centre': 'medical_center',
+    'maternity hospital': 'maternity_hospital',
+    'maternity clinic': 'maternity_hospital',
+    'gynecologist': 'gynecologist',
+    'fertility physician': 'fertility_clinic',
+    'reproductive health clinic': 'reproductive_health_clinic',
+    'dentist': 'dentist',
+    'dental clinic': 'dental_clinic',
+    'dermatologist': 'dermatologist',
+    'skin care clinic': 'skin_care_clinic',
   };
 
   const normalized = clean.trim().toLowerCase();
@@ -87,6 +135,7 @@ function cleanGmbCategory(catName: string): string {
   if (finalSuffix === 'training_centre') finalSuffix = 'training_center';
   if (finalSuffix === 'learning_centre') finalSuffix = 'learning_center';
   if (finalSuffix === 'coaching_centre') finalSuffix = 'coaching_center';
+  if (finalSuffix === 'medical_centre') finalSuffix = 'medical_center';
   
   return `categories/gcid:${finalSuffix}`;
 }
@@ -126,34 +175,39 @@ export async function pushMetadataToGMB(
   primaryPhone?: string,
   websiteUri?: string
 ): Promise<boolean> {
-  // Format primary category and fall back to standard training center if invalid
+  // Format primary category and allow any valid Google Category Resource Name
   let cleanedPrimary = cleanGmbCategory(primaryCategory);
-  if (!VALID_GCIDS.has(cleanedPrimary)) {
-    console.log(`Primary category "${primaryCategory}" is not in whitelist. Defaulting to training center.`);
-    cleanedPrimary = 'categories/gcid:training_center';
+  if (!VALID_GCIDS.has(cleanedPrimary) && !cleanedPrimary.startsWith('categories/gcid:')) {
+    console.log(`Primary category "${primaryCategory}" is not in whitelist. Defaulting to medical center.`);
+    cleanedPrimary = 'categories/gcid:medical_center';
   }
 
-  // Format secondary categories and filter out invalid ones to prevent 400 API crashes
+  // Format secondary categories and filter out empty ones
   const cleanedSecondaries = secondaryCategories
     .map(cat => cleanGmbCategory(cat))
-    .filter(cat => VALID_GCIDS.has(cat));
+    .filter(cat => VALID_GCIDS.has(cat) || cat.startsWith('categories/gcid:'));
 
   const formattedPhone = primaryPhone ? formatE164Phone(primaryPhone) : undefined;
 
+  const rawLocId = cleanLocationId(locationId);
+
   const gmbPayload: any = {
-    title: undefined, // Do not modify title
+    name: `locations/${rawLocId}`,
     profile: {
       description: description
     },
     categories: {
       primaryCategory: {
         name: cleanedPrimary
-      },
-      additionalCategories: cleanedSecondaries.map((cat) => ({
-        name: cat
-      }))
+      }
     }
   };
+
+  if (cleanedSecondaries.length > 0) {
+    gmbPayload.categories.additionalCategories = cleanedSecondaries.map((cat) => ({
+      name: cat
+    }));
+  }
 
   if (formattedPhone) {
     gmbPayload.phoneNumbers = {
@@ -164,9 +218,9 @@ export async function pushMetadataToGMB(
     gmbPayload.websiteUri = websiteUri;
   }
 
-  if (MOCK_GMB_API) {
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
     console.log('========================================================');
-    console.log(`GMB API (MOCK): Pushing SEO Metadata to location "${locationId}"`);
+    console.log(`GMB API (Agency/Mock): Pushing SEO Metadata to location "${locationId}"`);
     console.log('PAYLOAD SENT TO GOOGLE:', JSON.stringify(gmbPayload, null, 2));
     console.log('========================================================');
     // Simulate delay
@@ -180,7 +234,7 @@ export async function pushMetadataToGMB(
     if (formattedPhone) mask += ',phoneNumbers';
     if (websiteUri) mask += ',websiteUri';
 
-    const url = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${locationId}?updateMask=${mask}`;
+    const url = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${rawLocId}?updateMask=${mask}`;
     
     await axios.patch(url, gmbPayload, {
       headers: {
@@ -197,6 +251,7 @@ export async function pushMetadataToGMB(
       // Attempt 2 (Fallback): Update description, phone, website (skip categories)
       let fallbackMask = 'profile.description';
       const fallbackPayload: any = {
+        name: `locations/${rawLocId}`,
         profile: {
           description: description
         }
@@ -213,7 +268,7 @@ export async function pushMetadataToGMB(
         fallbackMask += ',websiteUri';
       }
 
-      const fallbackUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${locationId}?updateMask=${fallbackMask}`;
+      const fallbackUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${rawLocId}?updateMask=${fallbackMask}`;
       
       await axios.patch(fallbackUrl, fallbackPayload, {
         headers: {
@@ -241,7 +296,7 @@ export async function pushMetadataToGMB(
           fallbackMask += ',websiteUri';
         }
 
-        const fallbackUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${locationId}?updateMask=${fallbackMask}`;
+        const fallbackUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${rawLocId}?updateMask=${fallbackMask}`;
         
         await axios.patch(fallbackUrl, fallbackPayload, {
           headers: {
@@ -257,7 +312,7 @@ export async function pushMetadataToGMB(
 
         try {
           // Attempt 4: Update description only (absolute fallback)
-          const fallbackUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${locationId}?updateMask=profile.description`;
+          const fallbackUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${rawLocId}?updateMask=profile.description`;
           const fallbackPayload = {
             profile: {
               description: description
@@ -291,20 +346,22 @@ export async function pushServiceListToGMB(
   services: string[],
   primaryCategory: string
 ): Promise<boolean> {
-  if (MOCK_GMB_API) {
-    console.log(`GMB API (MOCK): Configuring serviceList for location "${locationId}" with primaryCategory: "${primaryCategory}"`);
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
+    console.log(`GMB API (Agency/Mock): Configuring serviceList for location "${locationId}" with primaryCategory: "${primaryCategory}"`);
     console.log('Services Pushed:', services);
     return true;
   }
 
+  const rawLocId = cleanLocationId(locationId);
+
   try {
     const resolvedAccountId = await resolveGMBAccountId(locationId, accessToken);
-    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${locationId}/serviceList`;
+    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${rawLocId}/serviceList`;
 
     const cleanedPrimary = cleanGmbCategory(primaryCategory);
 
     const servicePayload = {
-      name: `accounts/${resolvedAccountId}/locations/${locationId}/serviceList`,
+      name: `accounts/${resolvedAccountId}/locations/${rawLocId}/serviceList`,
       serviceTypes: [
         {
           displayName: primaryCategory.replace('categories/gcid:', '').replace(/_/g, ' '),
@@ -335,7 +392,9 @@ export async function pushServiceListToGMB(
  * Dynamically resolves the correct Account ID owning a location to prevent 404/403 errors on Location Groups
  */
 export async function resolveGMBAccountId(locationId: string, accessToken: string): Promise<string> {
-  if (MOCK_GMB_API) return '~';
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) return '~';
+  
+  const rawLocId = cleanLocationId(locationId);
   
   try {
     const accountsUrl = 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts';
@@ -352,7 +411,7 @@ export async function resolveGMBAccountId(locationId: string, accessToken: strin
           headers: { Authorization: `Bearer ${accessToken}` }
         });
         const locations = locationsResponse.data.locations || [];
-        const hasLocation = locations.some((loc: any) => loc.name === `locations/${locationId}`);
+        const hasLocation = locations.some((loc: any) => loc.name === `locations/${rawLocId}` || loc.name === locationId);
         
         if (hasLocation) {
           console.log(`Successfully mapped location "${locationId}" to Google Account ID "${rawAccountId}".`);
@@ -385,9 +444,10 @@ export async function publishPostToGMB(
   };
 
   if (ctaType !== 'NONE') {
+    const cleanCid = locationId.replace(/\D/g, '') || '1234567890';
     postPayload.callToAction = {
       actionType: ctaType,
-      url: `https://maps.google.com/?cid=${locationId}` // Point the CTA button to their local map listing
+      url: `https://maps.google.com/?cid=${cleanCid}` // Point the CTA button to their local map listing
     };
   }
 
@@ -400,9 +460,9 @@ export async function publishPostToGMB(
     ];
   }
 
-  if (MOCK_GMB_API) {
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
     console.log('========================================================');
-    console.log(`GMB API (MOCK): Publishing standard update to location "${locationId}"`);
+    console.log(`GMB API (Agency/Mock): Publishing standard update to location "${locationId}"`);
     console.log('PAYLOAD SENT TO GOOGLE:', JSON.stringify(postPayload, null, 2));
     console.log('========================================================');
     
@@ -418,27 +478,51 @@ export async function publishPostToGMB(
   }
 
   // Dynamically resolve correct Account ID owning this location
+  const rawLocId = cleanLocationId(locationId);
   const resolvedAccountId = await resolveGMBAccountId(locationId, accessToken);
 
   try {
     // POST to Google Business Local Post API
     // Endpoint: POST https://mybusiness.googleapis.com/v4/accounts/{accountId}/locations/{locationId}/localPosts
-    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${locationId}/localPosts`;
+    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${rawLocId}/localPosts`;
     console.log(`Publishing local post using endpoint URL: ${url}`);
     
-    const response = await axios.post(url, postPayload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    try {
+      const response = await axios.post(url, postPayload, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    return {
-      name: response.data.name,
-      searchUrl: response.data.searchUrl,
-      mediaUrl: response.data.media?.[0]?.googleUrl || mediaUrl,
-      summary: response.data.summary
-    };
+      return {
+        name: response.data.name,
+        searchUrl: response.data.searchUrl,
+        mediaUrl: response.data.media?.[0]?.googleUrl || mediaUrl,
+        summary: response.data.summary
+      };
+    } catch (primaryErr: any) {
+      if (postPayload.media) {
+        console.warn(`GMB post with media image rejected by Google API (${primaryErr.response?.data?.error?.message || primaryErr.message}). Retrying post publication without media image...`);
+        delete postPayload.media;
+        
+        const fallbackResponse = await axios.post(url, postPayload, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log(`Successfully published post to GMB without image fallback.`);
+        return {
+          name: fallbackResponse.data.name,
+          searchUrl: fallbackResponse.data.searchUrl,
+          mediaUrl: undefined,
+          summary: fallbackResponse.data.summary
+        };
+      }
+      throw primaryErr;
+    }
   } catch (err: any) {
     console.error(`Failed to publish GMB post for location "${locationId}":`, err.response?.data || err.message);
     throw new Error(`GMB post publishing failed: ${err.message}`);
@@ -460,8 +544,8 @@ export async function fetchGMBReviews(
   locationId: string,
   accessToken: string
 ): Promise<GMBReview[]> {
-  if (MOCK_GMB_API) {
-    console.log(`GMB API (MOCK): Fetching reviews for location "${locationId}"`);
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
+    console.log(`GMB API (Agency/Mock): Fetching reviews for location "${locationId}"`);
     // Return standard mock reviews to simulate doctor clinic feedback
     return [
       {
@@ -489,10 +573,11 @@ export async function fetchGMBReviews(
   }
 
   try {
+    const rawLocId = cleanLocationId(locationId);
     const resolvedAccountId = await resolveGMBAccountId(locationId, accessToken);
     // GET from GMB Reviews API
     // Endpoint: GET https://mybusiness.googleapis.com/v4/accounts/{accountId}/locations/${locationId}/reviews
-    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${locationId}/reviews`;
+    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${rawLocId}/reviews`;
     
     const response = await axios.get(url, {
       headers: {
@@ -523,9 +608,9 @@ export async function pushGMBReviewReply(
   accessToken: string,
   replyText: string
 ): Promise<boolean> {
-  if (MOCK_GMB_API) {
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
     console.log('========================================================');
-    console.log(`GMB API (MOCK): Replying to review "${reviewId}" for location "${locationId}"`);
+    console.log(`GMB API (Agency/Mock): Replying to review "${reviewId}" for location "${locationId}"`);
     console.log('REPLY TEXT SENT:', replyText);
     console.log('========================================================');
     await new Promise((resolve) => setTimeout(resolve, 800));
@@ -533,10 +618,11 @@ export async function pushGMBReviewReply(
   }
 
   try {
+    const rawLocId = cleanLocationId(locationId);
     const resolvedAccountId = await resolveGMBAccountId(locationId, accessToken);
     // PUT to GMB Reviews Reply API
     // Endpoint: PUT https://mybusiness.googleapis.com/v4/accounts/{accountId}/locations/${locationId}/reviews/${reviewId}/reply
-    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${locationId}/reviews/${reviewId}/reply`;
+    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${rawLocId}/reviews/${reviewId}/reply`;
     
     await axios.put(
       url,
@@ -565,9 +651,9 @@ export async function pushFAQToGMB(
   questionText: string,
   answerText: string
 ): Promise<boolean> {
-  if (MOCK_GMB_API) {
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
     console.log('========================================================');
-    console.log(`GMB API (MOCK): Publishing FAQ to location "${locationId}"`);
+    console.log(`GMB API (Agency/Mock): Publishing FAQ to location "${locationId}"`);
     console.log('QUESTION:', questionText);
     console.log('ANSWER:', answerText);
     console.log('========================================================');
@@ -576,10 +662,11 @@ export async function pushFAQToGMB(
   }
 
   try {
+    const rawLocId = cleanLocationId(locationId);
     const resolvedAccountId = await resolveGMBAccountId(locationId, accessToken);
     // 1. Post the Question
     // Endpoint: POST https://mybusiness.googleapis.com/v4/accounts/{accountId}/locations/{locationId}/questions
-    const questionUrl = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${locationId}/questions`;
+    const questionUrl = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${rawLocId}/questions`;
     const questionResponse = await axios.post(
       questionUrl,
       {
@@ -633,14 +720,15 @@ export async function publishMediaToGMB(
   mediaUrl: string,
   category: 'ADDITIONAL' | 'LOGO' | 'COVER' | 'INTERIOR' | 'EXTERIOR' = 'ADDITIONAL'
 ): Promise<string> {
-  if (MOCK_GMB_API) {
-    console.log(`GMB API (MOCK): Uploading photo media for location "${locationId}" from URL: ${mediaUrl} (Category: ${category})`);
+  if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
+    console.log(`GMB API (Agency/Mock): Uploading photo media for location "${locationId}" from URL: ${mediaUrl} (Category: ${category})`);
     return `accounts/mock_acc/locations/${locationId}/media/mock-media-${Date.now()}`;
   }
 
   try {
+    const rawLocId = cleanLocationId(locationId);
     const resolvedAccountId = await resolveGMBAccountId(locationId, accessToken);
-    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${locationId}/media`;
+    const url = `https://mybusiness.googleapis.com/v4/accounts/${resolvedAccountId}/locations/${rawLocId}/media`;
     
     const postPayload = {
       mediaFormat: 'PHOTO',

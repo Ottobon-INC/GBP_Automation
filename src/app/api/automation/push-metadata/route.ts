@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     // 2. Fetch Client Info (for phone and website)
     const { data: client, error: clientErr } = await supabaseAdmin
       .from('clients')
-      .select('*')
+      .select('*, gbp_automations(*)')
       .eq('id', clientId)
       .single();
 
@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
 
     // 4. Push optimizations to Google Business API
     console.log(`Pushing SEO categories and descriptions to location ${google_location_id}...`);
-    const websiteUri = client.onboarding_details?.website || 'https://www.example.com';
+    const gbpData = Array.isArray(client.gbp_automations) ? client.gbp_automations[0] : client.gbp_automations;
+    const websiteUri = gbpData?.website_url || client.onboarding_details?.website || 'https://www.example.com';
     const primaryPhone = client.contact_phone || undefined;
 
     await pushMetadataToGMB(

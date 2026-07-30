@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
   Sparkles, 
@@ -20,6 +20,8 @@ import {
 
 function CreationStatusContent() {
   const searchParams = useSearchParams();
+  const params = useParams();
+  const brand = params.brand as string;
   const clientId = searchParams.get('client_id');
 
   const [client, setClient] = useState<any>(null);

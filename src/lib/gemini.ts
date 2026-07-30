@@ -328,3 +328,70 @@ ${
   const result = await model.generateContent(prompt);
   return result.response.text().trim();
 }
+
+/**
+ * Generates monthly trending SEO keywords, optimal Google categories, and seasonal FAQs for a specific niche
+ */
+export async function generateNicheTrendsForMonth(
+  niche: string,
+  categoryType: string
+): Promise<{ trendingKeywords: string[]; recommendedCategories: string[]; faqs: string[] }> {
+  const currentMonthYear = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+  const prompt = `You are a Senior SEO Strategy Expert for local business optimization on Google Maps.
+We are conducting monthly niche search trend research for: "${niche}" (in the "${categoryType}" sector) for the current period: ${currentMonthYear}.
+
+Please analyze current seasonal search intent and provide:
+1. 12 to 15 high-ranking, high-intent local search keywords and search queries that patients/students are actively typing into Google Maps right now for this niche.
+2. 3 to 5 optimal Google Business Profile primary and secondary categories.
+3. 3 top seasonal FAQs with high local search volume.
+
+Respond ONLY with a valid JSON object in this exact format (no markdown code blocks, no explanation text):
+{
+  "trendingKeywords": ["keyword 1", "keyword 2", ...],
+  "recommendedCategories": ["Category 1", "Category 2", ...],
+  "faqs": ["Question 1?", "Question 2?", "Question 3?"]
+}`;
+
+  try {
+    let rawText = '';
+    if (OPENAI_API_KEY) {
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.4,
+          response_format: { type: "json_object" }
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      rawText = response.data.choices[0].message.content.trim();
+    } else if (genAI) {
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { responseMimeType: "application/json" } });
+      const result = await model.generateContent(prompt);
+      rawText = result.response.text().trim();
+    } else {
+      throw new Error('No AI API keys configured');
+    }
+
+    const parsed = JSON.parse(rawText);
+    return {
+      trendingKeywords: Array.isArray(parsed.trendingKeywords) ? parsed.trendingKeywords : [],
+      recommendedCategories: Array.isArray(parsed.recommendedCategories) ? parsed.recommendedCategories : [],
+      faqs: Array.isArray(parsed.faqs) ? parsed.faqs : []
+    };
+  } catch (err: any) {
+    console.error(`AI Niche Trends generation failed for "${niche}":`, err.message);
+    return {
+      trendingKeywords: [`best ${niche.toLowerCase()} near me`, `top ${niche.toLowerCase()} clinic`, `affordable ${niche.toLowerCase()} services`],
+      recommendedCategories: [niche, 'Medical Clinic', 'Educational Institution'],
+      faqs: [`What are the consultation timings for ${niche}?`, `How much does treatment cost at ${niche}?`, `How do I book an appointment?`]
+    };
+  }
+}
+

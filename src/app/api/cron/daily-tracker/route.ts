@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     // 1. Get all clients
     const { data: clients, error: fetchErr } = await supabaseAdmin
       .from('clients')
-      .select('id, company_name, target_keywords, service_area, onboarding_details');
+      .select('id, company_name, target_keywords, service_area, onboarding_details, gbp_automations(target_keywords)');
 
     if (fetchErr || !clients) {
       throw new Error(`Failed to query clients list: ${fetchErr?.message}`);
@@ -123,7 +123,8 @@ export async function GET(request: NextRequest) {
         .eq('client_id', client.id)
         .maybeSingle();
 
-      const clientKeywords = client.target_keywords || [];
+      const gbpData = Array.isArray(client.gbp_automations) ? client.gbp_automations[0] : client.gbp_automations;
+      const clientKeywords = gbpData?.target_keywords || client.target_keywords || [];
       const aiKeywords = gbpAccount?.ai_optimized_payload?.keyword_recommendations || [];
       
       const allKeywords = Array.from(new Set([

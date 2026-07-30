@@ -3,84 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getCompetitorsFromSerpApi } from '@/lib/serpapi';
 import { scrapeCompetitorsWithPuppeteer } from '@/lib/scraperService';
 import { getSEORecommendations } from '@/lib/gemini';
+import { getApprovedTrendForNiche } from '@/lib/sheetsService';
+import { sendEmail } from '@/lib/emailService';
+import { getRankViaSerpApi, getRankViaPuppeteer } from '@/lib/rankService';
 import axios from 'axios';
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 
-const SERPAPI_KEY = process.env.SERPAPI_KEY;
 
-const CHROME_PATHS = [
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  '/usr/bin/google-chrome',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-];
-
-function getChromePath(): string | undefined {
-  for (const path of CHROME_PATHS) {
-    if (fs.existsSync(path)) {
-      return path;
-    }
-  }
-  return undefined;
-}
-
-// Helper to look up rank via SerpApi Google Maps search results
-async function getRankViaSerpApi(clientName: string, query: string): Promise<number | null> {
-  if (!SERPAPI_KEY) throw new Error('Missing SERPAPI_KEY');
-  const response = await axios.get('https://serpapi.com/search.json', {
-    params: {
-      engine: 'google_maps',
-      q: query,
-      api_key: SERPAPI_KEY,
-    },
-  });
-  const listings = response.data.local_results || [];
-  const normalizedClientName = clientName.toLowerCase().replace(/\s+/g, '');
-  for (let i = 0; i < listings.length; i++) {
-    const listingName = (listings[i].title || '').toLowerCase().replace(/\s+/g, '');
-    if (listingName.includes(normalizedClientName) || normalizedClientName.includes(listingName)) {
-      return i + 1;
-    }
-  }
-  return null;
-}
-
-// Helper to look up rank via local Puppeteer Google Maps search results
-async function getRankViaPuppeteer(clientName: string, query: string): Promise<number | null> {
-  const executablePath = getChromePath();
-  const browser = await puppeteer.launch({
-    executablePath,
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
-  try {
-    const page = await browser.newPage();
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    );
-    const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
-    await page.goto(searchUrl, { waitUntil: 'networkidle2' });
-    try {
-      await page.waitForSelector('a[href*="/maps/place/"]', { timeout: 8000 });
-    } catch {
-      return null;
-    }
-    const listingNames = await page.$$eval('a[href*="/maps/place/"]', (elements) => {
-      return elements.map((el) => el.getAttribute('aria-label') || '');
-    });
-    const normalizedClientName = clientName.toLowerCase().replace(/\s+/g, '');
-    for (let i = 0; i < listingNames.length; i++) {
-      const name = listingNames[i].toLowerCase().replace(/\s+/g, '');
-      if (name.includes(normalizedClientName) || normalizedClientName.includes(name)) {
-        return i + 1;
-      }
-    }
-    return null;
-  } finally {
-    await browser.close();
-  }
-}
 
 
 // Trigger endpoint to perform competitor scraping and AI analysis
@@ -98,7 +28,7 @@ export async function GET(request: NextRequest) {
     // 1. Fetch Client Profile from Supabase
     const { data: client, error: clientErr } = await supabaseAdmin
       .from('clients')
-      .select('*')
+      .select('*, gbp_automations(*)')
       .eq('id', clientId)
       .single();
 
@@ -109,9 +39,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Extract primary category from gbp_automations or fallback to client
+    const gbpData = Array.isArray(client.gbp_automations) ? client.gbp_automations[0] : client.gbp_automations;
+    const primaryCategory = gbpData?.primary_category || client.primary_category || 'Business';
+    const safeServiceArea = client.service_area || 'Visakhapatnam';
+
     // 2. Build the Search Query
     // e.g., "IVF & Fertility Center in Arilova, Visakhapatnam"
-    const searchQuery = `${client.primary_category} in ${client.service_area}`;
+    const searchQuery = `${primaryCategory} in ${safeServiceArea}`;
     console.log(`Starting competitor analysis for client "${client.company_name}" using query: "${searchQuery}"`);
 
     let competitors: any[] = [];
@@ -217,6 +152,47 @@ export async function GET(request: NextRequest) {
       businessType
     );
 
+    // 5b. Enrich with live Approved Niche Trends (Secret Sauce) from Google Sheet
+    try {
+      console.log(`Checking Google Sheet for verified secret sauce trends for category: "${client.primary_category}"...`);
+      const approvedTrend = await getApprovedTrendForNiche(client.primary_category || client.company_name);
+      if (approvedTrend) {
+        console.log(`Found verified Secret Sauce data for "${approvedTrend.niche}"! Enriching AI recommendations...`);
+        // Merge verified keywords at the very top of recommendations
+        const existingKeywords = recommendations.keyword_recommendations || [];
+        recommendations.keyword_recommendations = Array.from(new Set([
+          ...approvedTrend.trendingKeywords,
+          ...existingKeywords
+        ])).slice(0, 25);
+
+        // Merge recommended secondary categories
+        if (approvedTrend.recommendedCategories.length > 0) {
+          const existingCategories = recommendations.recommended_categories?.secondary || [];
+          if (!recommendations.recommended_categories) {
+            recommendations.recommended_categories = { primary: client.primary_category || '', secondary: [] };
+          }
+          recommendations.recommended_categories.secondary = Array.from(new Set([
+            ...approvedTrend.recommendedCategories,
+            ...existingCategories
+          ])).slice(0, 5);
+        }
+
+        // Merge seasonal FAQs
+        if (approvedTrend.faqs.length > 0) {
+          const existingFaqs = recommendations.faqs || [];
+          const newFaqObjects = approvedTrend.faqs.map(q => ({
+            question: q,
+            answer: `Please contact our ${client.company_name} consultation desk for detailed information and assistance regarding ${q.toLowerCase().replace(/\?$/, '')}.`
+          }));
+          recommendations.faqs = [...newFaqObjects, ...existingFaqs].slice(0, 10);
+        }
+      } else {
+        console.log('No approved rows matched in Google Sheet; proceeding with standard AI recommendations.');
+      }
+    } catch (sheetErr: any) {
+      console.warn('Secret Sauce Google Sheet lookup warning:', sheetErr.message);
+    }
+
     // 6. Save recommendations back to client's `public.gbp_accounts` record
     const { data: gbpAccount, error: fetchAccErr } = await supabaseAdmin
       .from('gbp_accounts')
@@ -282,9 +258,9 @@ export async function GET(request: NextRequest) {
 
     if (!ranksFromCache) {
       for (const keyword of allKeywords) {
-        // 1. Specific Local query
-        const localQuery = `${keyword} in ${client.service_area}`;
-        const localKey = `${keyword} (Local - ${client.service_area})`;
+        // 1. Hyper-local query
+        const localQuery = `${keyword} in ${safeServiceArea}`;
+        const localKey = `${keyword} (Local - ${safeServiceArea})`;
         let localRank: number | null = null;
         try {
           localRank = await getRankViaSerpApi(client.company_name, localQuery);
@@ -299,8 +275,8 @@ export async function GET(request: NextRequest) {
         initialRankings[localKey] = localRank !== null ? localRank : '20+';
 
         // 2. Broader District/City query (if different)
-        const district = client.service_area.split(',').pop()?.trim() || client.service_area;
-        if (district.toLowerCase() !== client.service_area.toLowerCase()) {
+        const district = safeServiceArea.split(',').pop()?.trim() || safeServiceArea;
+        if (district.toLowerCase() !== safeServiceArea.toLowerCase()) {
           const districtQuery = `${keyword} in ${district}`;
           const districtKey = `${keyword} (District - ${district})`;
           let districtRank: number | null = null;
@@ -344,6 +320,91 @@ export async function GET(request: NextRequest) {
       if (clientUpdateErr) {
         console.error(`Rank Check: Failed to update client's rank_history:`, clientUpdateErr.message);
       }
+    }
+
+    // 8. Generate and Send Initial Audit Report
+    const adminEmail = 'intern@medcytech.com';
+    const clientEmail = client.contact_email;
+    const recipients = clientEmail ? [adminEmail, clientEmail] : [adminEmail];
+    
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #334155; line-height: 1.6; }
+          .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+          .header { background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px 40px; color: white; text-align: center; }
+          .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+          .content { padding: 40px; }
+          .greeting { font-size: 18px; font-weight: 600; margin-top: 0; color: #0f172a; }
+          .alert-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 20px; border-radius: 0 8px 8px 0; margin: 25px 0; }
+          .alert-box h3 { color: #b91c1c; margin: 0 0 10px 0; font-size: 16px; }
+          .alert-box ul { margin: 0; padding-left: 20px; color: #991b1b; }
+          .action-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 25px; border-radius: 12px; margin: 30px 0; }
+          .action-box h3 { color: #166534; margin: 0 0 15px 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+          .step { margin-bottom: 15px; }
+          .step strong { color: #065f46; }
+          .footer { background: #f1f5f9; padding: 30px 40px; text-align: center; font-size: 14px; color: #64748b; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Google Business Profile Audit</h1>
+          </div>
+          <div class="content">
+            <p class="greeting">Hello ${client.company_name} Team,</p>
+            <h3>📊 Where You Currently Stand</h3>
+            <p>We checked your local rankings against top competitors in <strong>${safeServiceArea}</strong>:</p>
+            <p>Your Google Business Profile has been successfully connected to the Medcy SEO Engine. Our AI has just completed a comprehensive audit of your profile against your top local competitors.</p>
+            
+            <div class="alert-box">
+              <h3>⚠️ Technical Gaps Identified</h3>
+              <p style="margin-top:0; font-size: 14px; margin-bottom: 10px;">To maximize your visibility, we found several areas where your profile is technically lagging behind local competitors:</p>
+              <ul>
+                <li><strong>Sub-optimal Category Structure:</strong> Missing critical secondary categories that trigger local search queries.</li>
+                <li><strong>Keyword Density:</strong> The profile description lacks high-intent medical SEO keywords.</li>
+                <li><strong>Service Indexing:</strong> Popular clinical specialties are not fully mapped to Google's standardized service lists.</li>
+              </ul>
+            </div>
+
+            <div class="action-box">
+              <h3>🚀 Our Optimization Strategy</h3>
+              <p style="margin-top:0; font-size: 14px; color: #166534;">We are taking immediate action. Here is exactly what we are deploying to increase your local visibility:</p>
+              
+              <div class="step">
+                <strong>1. Category Realignment:</strong> Shifting your primary category to <i>${recommendations.recommended_categories?.primary || client.primary_category}</i> and injecting high-value secondary tags.
+              </div>
+              <div class="step">
+                <strong>2. SEO Description Overhaul:</strong> Pushing a newly generated, AI-optimized business description rich in targeted keywords like <i>${(recommendations.keyword_recommendations || []).slice(0, 5).join(', ')}</i>.
+              </div>
+              <div class="step">
+                <strong>3. Continuous Ranking Protection:</strong> Our engine is now locked onto your profile and will continuously monitor your local map pack placement.
+              </div>
+            </div>
+
+            <p><strong>Status:</strong> Our team is currently reviewing these optimizations. Once approved, the changes will be pushed directly to Google automatically. No action is required on your end.</p>
+            
+            <p style="margin-top: 30px; font-weight: 600;">Best Regards,<br/><span style="color: #059669;">Medcy Health Tech SEO Team</span></p>
+          </div>
+          <div class="footer">
+            Automated SEO Intelligence by Medcy
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      await sendEmail({
+        to: recipients,
+        subject: `GBP Initial Audit Report - ${client.company_name}`,
+        html: emailHtml
+      });
+      console.log('Initial audit report emailed successfully.');
+    } catch (emailErr: any) {
+      console.error('Failed to send audit email:', emailErr.message);
     }
 
     return NextResponse.json({

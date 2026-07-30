@@ -1,0 +1,1065 @@
+'use client';
+
+import React, { useState, useRef, Suspense, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { 
+  Building2, 
+  Mail, 
+  Phone, 
+  MapPin, 
+  Tag, 
+  UploadCloud, 
+  X, 
+  Plus, 
+  Sparkles, 
+  FileImage, 
+  CheckCircle2, 
+  ArrowRight,
+  GraduationCap,
+  Loader2,
+  Users
+} from 'lucide-react';
+import OnboardingTypeSelector from '@/components/onboarding/OnboardingTypeSelector';
+import WebsiteOnboardingWizard from '@/components/onboarding/WebsiteOnboardingWizard';
+import PatientManagementOnboardingWizard from '@/components/onboarding/PatientManagementOnboardingWizard';
+import WhatsAppAutomationOnboardingWizard from '@/components/onboarding/WhatsAppAutomationOnboardingWizard';
+
+export default function ClientOnboardingFormContent({ brand }: { brand: string }) {
+
+  const [businessType, setBusinessType] = useState<'healthcare' | 'education'>('healthcare');
+  const [formData, setFormData] = useState({
+    companyName: '',
+    contactEmail: '',
+    contactPhone: '',
+    primaryCategory: 'Multi-Specialty Hospital',
+    serviceArea: '',
+    website: '',
+  });
+
+  // Doctors state
+  const [doctorsList, setDoctorsList] = useState<any[]>([]);
+  const [doctorName, setDoctorName] = useState('');
+  const [doctorSpecialty, setDoctorSpecialty] = useState('');
+  const [doctorBio, setDoctorBio] = useState('');
+
+  useEffect(() => {
+    if (brand === 'ottobon') {
+      setBusinessType('education');
+      setFormData(prev => ({ ...prev, primaryCategory: 'Software Training Institute' }));
+    } else if (brand === 'medcy') {
+      setBusinessType('healthcare');
+      setFormData(prev => ({ ...prev, primaryCategory: 'Gynecologist & Maternity Clinic' }));
+    }
+
+    const fetchClients = async () => {
+      try {
+        const { data } = await supabase.from('clients').select('*').order('company_name', { ascending: true });
+        if (data) setExistingClients(data);
+      } catch (e) {
+        console.error('Error fetching clients:', e);
+      }
+    };
+    fetchClients();
+  }, [brand]);
+
+  const handleSelectExistingClient = (clientId: string) => {
+    setSelectedClientId(clientId);
+    if (!clientId) return;
+    const client = existingClients.find(c => c.id === clientId || c.company_name === clientId);
+    if (client) {
+      setFormData(prev => ({
+        ...prev,
+        companyName: client.company_name || prev.companyName,
+        contactEmail: client.contact_email || prev.contactEmail,
+        contactPhone: client.contact_phone || prev.contactPhone,
+        serviceArea: client.service_area || prev.serviceArea
+      }));
+      alert(`✨ Pre-filled basic info for "${client.company_name}". You can skip re-typing these!`);
+    }
+  };
+
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [currentSpecialty, setCurrentSpecialty] = useState('');
+  
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [currentKeyword, setCurrentKeyword] = useState('');
+  const [existingClients, setExistingClients] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+
+  // File Upload State
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string>('');
+  const [buildingFile, setBuildingFile] = useState<File | null>(null);
+  const [buildingPreview, setBuildingPreview] = useState<string>('');
+  const [interiorFile, setInteriorFile] = useState<File | null>(null);
+  const [interiorPreview, setInteriorPreview] = useState<string>('');
+  const [staffFile, setStaffFile] = useState<File | null>(null);
+  const [staffPreview, setStaffPreview] = useState<string>('');
+
+  // Form submission and validation state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [hasGBP, setHasGBP] = useState(true);
+
+  // File Input Refs
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const buildingInputRef = useRef<HTMLInputElement>(null);
+  const interiorInputRef = useRef<HTMLInputElement>(null);
+  const staffInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle adding array tags (Specialties/Keywords)
+  const addTag = (
+    e: React.KeyboardEvent | React.MouseEvent,
+    value: string, 
+    setter: React.Dispatch<React.SetStateAction<string[]>>, 
+    clearInput: React.Dispatch<React.SetStateAction<string>>
+  ) => {
+    // If mouse click or Enter key pressed
+    if (('key' in e ? e.key === 'Enter' : e.type === 'click') && value.trim()) {
+      e.preventDefault();
+      setter(prev => [...new Set([...prev, value.trim()])]);
+      clearInput('');
+    }
+  };
+
+  const removeTag = (tagToRemove: string, setter: React.Dispatch<React.SetStateAction<string[]>>) => {
+    setter(prev => prev.filter(tag => tag !== tagToRemove));
+  };
+
+  // Handle Logo Upload Preview
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle Building Image Upload Preview
+  const handleBuildingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBuildingFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBuildingPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  // Handle Interior Image Upload Preview
+  const handleInteriorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setInteriorFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setInteriorPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle Staff/Team Image Upload Preview
+  const handleStaffChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setStaffFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStaffPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Upload to Supabase Storage Helper
+  const uploadToStorage = async (file: File, folder: string): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const uniqueId = Math.random().toString(36).substring(2, 15);
+    const fileName = `${uniqueId}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('client-assets')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload ${file.name} to storage: ${uploadError.message}`);
+    }
+
+    const { data } = supabase.storage.from('client-assets').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      // 1. Core validations
+      if (!logoFile) {
+        throw new Error(businessType === 'healthcare' ? 'Please upload your Hospital Logo.' : 'Please upload your Campus/Institution Logo.');
+      }
+      if (!buildingFile) {
+        throw new Error(businessType === 'healthcare' ? 'Please upload a Building Facade Photo for GBP optimization.' : 'Please upload a Campus/Building Facade Photo.');
+      }
+
+      // 2. Upload images to Supabase Storage Bucket
+      let logoUrl = '';
+      let buildingImageUrl = '';
+
+      try {
+        logoUrl = await uploadToStorage(logoFile, 'logos');
+      } catch (err: any) {
+        throw new Error(`Logo Upload Failed: Make sure you created the 'client-assets' bucket in Supabase and set it to public. Details: ${err.message}`);
+      }
+
+      try {
+        buildingImageUrl = await uploadToStorage(buildingFile, 'buildings');
+      } catch (err: any) {
+        throw new Error(`Building Image Upload Failed: Details: ${err.message}`);
+      }
+
+      let interiorUrl = '';
+      if (interiorFile) {
+        try {
+          interiorUrl = await uploadToStorage(interiorFile, 'interiors');
+        } catch (err: any) {
+          throw new Error(`Interior Image Upload Failed: Details: ${err.message}`);
+        }
+      }
+
+      let staffUrl = '';
+      if (staffFile) {
+        try {
+          staffUrl = await uploadToStorage(staffFile, 'staff');
+        } catch (err: any) {
+          throw new Error(`Staff Image Upload Failed: Details: ${err.message}`);
+        }
+      }
+
+      // 3. Insert record into Supabase Database `public.clients`
+      const existingMatch = existingClients.find(
+        c => c.id === selectedClientId || 
+             c.company_name?.toLowerCase() === formData.companyName.trim().toLowerCase()
+      );
+
+      let newClient = null;
+      let dbError = null;
+
+      if (existingMatch && existingMatch.id) {
+        // UPDATE existing record to avoid duplicate rows!
+        const existingDetails = existingMatch.onboarding_details || {};
+        const updatedDetails = {
+          ...existingDetails,
+          has_gbp: hasGBP,
+          business_type: businessType,
+          completed_step: 'profile_onboarding',
+          onboarded_at: new Date().toISOString(),
+          website: formData.website || null,
+          doctors: doctorsList,
+          additional_images: {
+            interior_url: interiorUrl || null,
+            staff_url: staffUrl || null
+          }
+        };
+
+        const { data, error } = await supabase
+          .from('clients')
+          .update({
+            company_name: formData.companyName,
+            contact_email: formData.contactEmail,
+            contact_phone: formData.contactPhone,
+            logo_url: logoUrl || existingMatch.logo_url || null,
+            building_image_url: buildingImageUrl || existingMatch.building_image_url || null,
+            primary_category: formData.primaryCategory,
+            popular_specialties: specialties.length ? specialties : existingMatch.popular_specialties,
+            target_keywords: keywords.length ? keywords : existingMatch.target_keywords,
+            service_area: formData.serviceArea || existingMatch.service_area,
+            onboarding_details: updatedDetails
+          })
+          .eq('id', existingMatch.id)
+          .select()
+          .single();
+
+        newClient = data || existingMatch;
+        dbError = error;
+      } else {
+        const { data, error } = await supabase
+          .from('clients')
+          .insert([
+            {
+              company_name: formData.companyName,
+              contact_email: formData.contactEmail,
+              contact_phone: formData.contactPhone,
+              logo_url: logoUrl,
+              building_image_url: buildingImageUrl,
+              primary_category: formData.primaryCategory,
+              popular_specialties: specialties,
+              target_keywords: keywords,
+              service_area: formData.serviceArea,
+              onboarding_details: {
+                has_gbp: hasGBP,
+                business_type: businessType,
+                completed_step: 'profile_onboarding',
+                onboarded_at: new Date().toISOString(),
+                website: formData.website || null,
+                doctors: doctorsList,
+                additional_images: {
+                  interior_url: interiorUrl || null,
+                  staff_url: staffUrl || null
+                }
+              }
+            }
+          ])
+          .select()
+          .single();
+
+        newClient = data;
+        dbError = error;
+      }
+
+      if (dbError) {
+        throw new Error(`Database submission failed: ${dbError.message}`);
+      }
+
+      // --- NEW: UPSERT INTO gbp_automations TABLE ---
+      const { error: gbpError } = await supabase
+        .from('gbp_automations')
+        .upsert({
+          client_id: newClient.id,
+          primary_category: formData.primaryCategory,
+          target_keywords: keywords.length ? keywords : [],
+          popular_specialties: specialties.length ? specialties : [],
+          building_image_url: buildingImageUrl || (existingMatch ? existingMatch.building_image_url : null),
+          website_url: formData.website || null,
+          status: 'pending'
+        }, { onConflict: 'client_id' });
+
+      if (gbpError) {
+        console.error("Failed to upsert into gbp_automations:", gbpError);
+        // We won't throw here to not block the user, but log it.
+      }
+      // ----------------------------------------------
+
+      setSuccessMessage('Successfully saved onboarding profile!');
+      
+      // 4. Route based on GBP status:
+      // Has GBP: Connect existing profile via Google OAuth (if OAuth is not disabled for manual agency flow)
+      // No GBP: Go to success page - our team will create the profile for them
+      setTimeout(() => {
+        const disableOAuth = process.env.NEXT_PUBLIC_DISABLE_OAUTH === 'true';
+        if (hasGBP && !disableOAuth) {
+          window.location.href = `/api/auth/google?client_id=${newClient.id}&action=link`;
+        } else {
+          window.location.href = `/${brand}/onboarding/success?client_id=${newClient.id}`;
+        }
+      }, 1500);
+
+    } catch (err: any) {
+      setErrorMessage(err.message || 'An unexpected error occurred.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isOttobon = brand === 'ottobon';
+  
+  // Style config variables
+  const accentColor = isOttobon ? 'text-amber-800' : 'text-emerald-700';
+  const focusBorder = isOttobon ? 'focus:border-amber-700 focus:ring-amber-500/10' : 'focus:border-emerald-700 focus:ring-emerald-500/10';
+  const badgeStyle = isOttobon 
+    ? 'text-amber-800 bg-amber-50 border-amber-200/80 font-bold' 
+    : 'text-emerald-700 bg-emerald-50 border-emerald-200/80 font-bold';
+  const tagStyle = isOttobon
+    ? 'bg-amber-50 text-amber-800 border-amber-200/80 font-semibold shadow-2xs'
+    : 'bg-emerald-50 text-emerald-700 border-emerald-200/80 font-semibold shadow-2xs';
+  const buttonStyle = isOttobon
+    ? 'bg-slate-900 hover:bg-slate-800 text-white font-extrabold shadow-sm'
+    : 'bg-slate-900 hover:bg-slate-800 text-white font-extrabold shadow-sm';
+  const bgGlow = isOttobon
+    ? 'bg-amber-500/5'
+    : 'bg-emerald-500/5';
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Subtle light background decorations */}
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-2xl relative z-10 flex flex-col items-center">
+        <div className="flex flex-col items-center justify-center gap-2.5 mb-3">
+          <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center p-2.5 mb-1 border border-slate-200 shadow-sm">
+            <img src={isOttobon ? '/ottobon_logo.png' : '/medcy_logo.png'} alt="Logo" className="h-full w-full object-contain" />
+          </div>
+          <span className={`text-xs uppercase tracking-wider px-3.5 py-1 rounded-lg border ${badgeStyle}`}>
+            {isOttobon ? 'Ottobon Agency Setup' : 'Medcy Health Tech Setup'}
+          </span>
+        </div>
+        <h2 className="text-center text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+          {isOttobon ? 'Academy Intake Registry' : 'Hospital Intake Registry'}
+        </h2>
+        <p className="mt-2 text-center text-sm font-medium text-slate-500 max-w-lg mx-auto">
+          {isOttobon
+            ? 'Provide your campus details, upload branding files, and link your Google profile so our management specialists can optimize your presence on Google Maps.'
+            : 'Provide your clinic details, upload branding files, and link your Google profile so our management specialists can optimize your presence on Google Maps.'}
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl relative z-10">
+        <div className="bg-white border border-slate-200/80 shadow-md rounded-3xl p-6 sm:p-10">
+          
+          {/* Status Messages */}
+          {errorMessage && (
+            <div className="mb-6 bg-red-50 border border-red-200 p-4 rounded-xl text-sm text-red-700 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+              <X className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold text-red-900">Onboarding Error</strong>
+                <p className="mt-0.5">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-6 bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-sm text-emerald-700 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-bold text-emerald-900">Profile Saved</strong>
+                <p className="mt-0.5">{successMessage} Redirecting to Google verification...</p>
+              </div>
+            </div>
+          )}
+
+          <form className="space-y-8" onSubmit={handleSubmit}>
+            
+            {/* 1. Core Profile Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-extrabold text-slate-900 border-b border-slate-100 pb-2.5 flex items-center gap-2">
+                {isOttobon ? (
+                  <>
+                    <GraduationCap className={`h-5 w-5 ${accentColor}`} />
+                    Institution Identity
+                  </>
+                ) : (
+                  <>
+                    <Building2 className={`h-5 w-5 ${accentColor}`} />
+                    Clinic Identity
+                  </>
+                )}
+              </h3>
+              
+              {/* Smart Tenant Profile Selector Banner */}
+              <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-indigo-950 font-black text-xs sm:text-sm">
+                    <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 animate-pulse" />
+                    <span>Already registered your Business or Clinic?</span>
+                  </div>
+                  {selectedClientId && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300">
+                      ✨ Linked to Backend Profile
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+                  Select your existing profile below to automatically pre-fill your business name, contact phone, email, and address. This prevents duplicate database records!
+                </p>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                  <select
+                    value={selectedClientId}
+                    onChange={(e) => handleSelectExistingClient(e.target.value)}
+                    className="w-full bg-white border border-indigo-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 shadow-2xs cursor-pointer"
+                  >
+                    <option value="">-- Select Existing Brand / Clinic Profile (Optional) --</option>
+                    {existingClients.map((c, i) => (
+                      <option key={c.id || i} value={c.id || c.company_name}>
+                        {c.company_name} ({c.contact_email || 'No email'}) • {c.primary_category || 'Business'}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedClientId && (
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedClientId(''); }}
+                      className="px-3.5 py-2.5 bg-white hover:bg-red-50 text-red-600 text-xs font-black rounded-xl border border-red-200 transition-colors shrink-0 cursor-pointer"
+                    >
+                      Clear & New
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700">
+                  {isOttobon ? 'Official College / School Name' : 'Official Hospital / Clinic Name'}
+                </label>
+                <div className="mt-1.5 relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder={isOttobon ? 'e.g., Ottobon Academy' : 'e.g., Medcy Multi-Specialty Hospital'}
+                    className={`block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
+                    value={formData.companyName}
+                    onChange={e => setFormData({...formData, companyName: e.target.value})}
+                  />
+                </div>
+                <p className="mt-1 text-xs font-medium text-slate-500">Must exactly match your street signboard to pass Google Business verification.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Contact Email</label>
+                  <div className="mt-1.5 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      placeholder={isOttobon ? 'admissions@academy.com' : 'marketing@hospital.com'}
+                      className={`block w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
+                      value={formData.contactEmail}
+                      onChange={e => setFormData({...formData, contactEmail: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {isOttobon ? 'Admissions Helpline Phone' : 'Appointment Phone Number'}
+                  </label>
+                  <div className="mt-1.5 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Phone className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="+91 XXXXX XXXXX"
+                      className={`block w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
+                      value={formData.contactPhone}
+                      onChange={e => setFormData({...formData, contactPhone: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700">Website URL</label>
+                  <div className="mt-1.5 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://www.example.com"
+                      className={`block w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
+                      value={formData.website}
+                      onChange={e => setFormData({...formData, website: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Categorization & Location */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-extrabold text-slate-900 border-b border-slate-100 pb-2.5 flex items-center gap-2">
+                <MapPin className={`h-5 w-5 ${accentColor}`} />
+                Location & Categorization
+              </h3>
+              
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Primary Google Category</label>
+                  <select
+                    className={`mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 ${focusBorder} text-sm transition-all shadow-xs`}
+                    value={formData.primaryCategory}
+                    onChange={e => setFormData({...formData, primaryCategory: e.target.value})}
+                  >
+                    {isOttobon ? (
+                      <>
+                        <option>School (CBSE / ICSE)</option>
+                        <option>Junior College (Intermediate)</option>
+                        <option>Degree College</option>
+                        <option>Engineering College</option>
+                        <option>Training Institute</option>
+                        <option>Coaching Center</option>
+                      </>
+                    ) : (
+                      <>
+                        <option>Gynecologist & Maternity Clinic</option>
+                        <option>IVF & Fertility Center</option>
+                        <option>Dermatologist & Skin Clinic</option>
+                        <option>Dental Clinic</option>
+                        <option>Multi-Specialty Hospital</option>
+                        <option>Pediatric Hospital</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Target Location / City Area</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., siripuram, visakhapatnam"
+                    className={`mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
+                    value={formData.serviceArea}
+                    onChange={e => setFormData({...formData, serviceArea: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Specialties / Course Tags */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-slate-700">
+                {isOttobon ? 'Popular Courses & Programs Offered' : 'Popular Specialties Offered'}
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-grow">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Tag className="h-4 w-4" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder={
+                      isOttobon
+                        ? 'e.g., B.Tech CSE, MBA, IIT-JEE Prep, NEET Coaching (Press Enter)'
+                        : 'e.g., Laparoscopic Surgery, Pediatrics (Press Enter)'
+                    }
+                    className={`block w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
+                    value={currentSpecialty}
+                    onChange={e => setCurrentSpecialty(e.target.value)}
+                    onKeyDown={e => addTag(e, currentSpecialty, setSpecialties, setCurrentSpecialty)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={e => addTag(e, currentSpecialty, setSpecialties, setCurrentSpecialty)}
+                  className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" /> Add
+                </button>
+              </div>
+              
+              {specialties.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in duration-200">
+                  {specialties.map(tag => (
+                    <span key={tag} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border shadow-2xs animate-in scale-in-95 duration-100 ${tagStyle}`}>
+                      {tag}
+                      <button 
+                        type="button" 
+                        onClick={() => removeTag(tag, setSpecialties)} 
+                        className="opacity-75 hover:opacity-100 rounded-full p-0.5 transition-colors cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Target Keywords Tags */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <label className="block text-sm font-semibold text-slate-700">SEO Target Keywords</label>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">Optional</span>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-grow">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Tag className="h-4 w-4" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder={
+                      isOttobon
+                        ? 'e.g., best engineering college, top junior college in Visakhapatnam (Press Enter)'
+                        : 'e.g., best hospital near me, top doctor for IVF (Press Enter)'
+                    }
+                    className={`block w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
+                    value={currentKeyword}
+                    onChange={e => setCurrentKeyword(e.target.value)}
+                    onKeyDown={e => addTag(e, currentKeyword, setKeywords, setCurrentKeyword)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={e => addTag(e, currentKeyword, setKeywords, setCurrentKeyword)}
+                  className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" /> Add
+                </button>
+              </div>
+              
+              {keywords.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in duration-200">
+                  {keywords.map(tag => (
+                    <span key={tag} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border shadow-2xs animate-in scale-in-95 duration-100 ${tagStyle}`}>
+                      {tag}
+                      <button 
+                        type="button" 
+                        onClick={() => removeTag(tag, setKeywords)} 
+                        className="opacity-75 hover:opacity-100 rounded-full p-0.5 transition-colors cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Doctors / Faculty Registry */}
+            <div className="space-y-4 border-t border-slate-100 pt-6">
+              <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                <Users className={`h-5 w-5 ${accentColor}`} />
+                {businessType === 'education' ? 'Faculty & Instructors Registry' : 'Doctors & Practitioners Registry'}
+              </h3>
+              <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                Add profiles of experts, doctors, or teachers who will represent your business. These registry details will be used to automatically draft showcase updates on Google Maps.
+              </p>
+
+              {/* Add doctor panel */}
+              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Full Name</label>
+                    <input 
+                      type="text" 
+                      placeholder={businessType === 'education' ? "e.g., Prof. Rajesh Kumar" : "e.g., Dr. Anjali Sharma"}
+                      value={doctorName}
+                      onChange={e => setDoctorName(e.target.value)}
+                      className="mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-800 transition-all shadow-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Specialty / Qualification</label>
+                    <input 
+                      type="text" 
+                      placeholder={businessType === 'education' ? "e.g., Deep Learning Research Lead" : "e.g., IVF Specialist, MD"}
+                      value={doctorSpecialty}
+                      onChange={e => setDoctorSpecialty(e.target.value)}
+                      className="mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-800 transition-all shadow-xs"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Brief Biography</label>
+                  <textarea 
+                    placeholder={businessType === 'education' ? "e.g., 8+ years guiding engineering students in machine learning projects..." : "e.g., 12+ years experience in helping couples achieve parenthood..."}
+                    value={doctorBio}
+                    onChange={e => setDoctorBio(e.target.value)}
+                    rows={2}
+                    className="mt-1.5 block w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-800 transition-all resize-none shadow-xs"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (doctorName.trim() && doctorSpecialty.trim()) {
+                      setDoctorsList([...doctorsList, {
+                        name: doctorName.trim(),
+                        specialty: doctorSpecialty.trim(),
+                        bio: doctorBio.trim()
+                      }]);
+                      setDoctorName('');
+                      setDoctorSpecialty('');
+                      setDoctorBio('');
+                    }
+                  }}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {businessType === 'education' ? 'Add Faculty Member' : 'Add Medical Doctor'}
+                </button>
+              </div>
+
+              {/* Display list */}
+              {doctorsList.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {doctorsList.map((doc, idx) => (
+                    <div key={idx} className="p-3 bg-white border border-slate-200 shadow-xs rounded-xl space-y-1 relative group animate-in fade-in duration-200">
+                      <button 
+                        type="button"
+                        onClick={() => setDoctorsList(doctorsList.filter((_, i) => i !== idx))}
+                        className="absolute top-2 right-2 text-slate-400 hover:text-slate-900 transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      <h5 className="text-xs font-bold text-slate-900 pr-4">{doc.name}</h5>
+                      <p className="text-[10px] font-bold text-indigo-700">{doc.specialty}</p>
+                      {doc.bio && <p className="text-[10px] text-slate-600 leading-relaxed italic">"{doc.bio}"</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 5. Creative Assets Upload */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-extrabold text-slate-900 border-b border-slate-100 pb-2.5 flex items-center gap-2">
+                <UploadCloud className={`h-5 w-5 ${accentColor}`} />
+                Creative & Media Assets
+              </h3>
+              
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {/* Brand Logo */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {isOttobon ? 'Academy Logo' : 'Clinic Logo'}
+                  </label>
+                  <div 
+                    onClick={() => logoInputRef.current?.click()}
+                    className={`mt-1.5 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-6 text-center cursor-pointer transition-all ${logoPreview ? 'border-solid border-slate-300' : ''}`}
+                  >
+                    <input 
+                      type="file" 
+                      ref={logoInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleLogoChange}
+                    />
+                    {logoPreview ? (
+                      <div className="relative w-full aspect-video flex items-center justify-center bg-white rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+                        <img src={logoPreview} alt="Logo preview" className="max-h-full max-w-full object-contain" />
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLogoFile(null);
+                            setLogoPreview('');
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-slate-600 hover:text-slate-900 rounded-full transition-colors border border-slate-200 shadow-sm"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <UploadCloud className="h-8 w-8 text-slate-400 mb-2 group-hover:scale-105 transition-transform" />
+                        <p className="text-xs text-slate-700 font-semibold">Click to upload brand logo</p>
+                        <p className="text-[10px] font-medium text-slate-400 mt-1">PNG, JPG up to 5MB</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Facade Image */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {isOttobon ? 'Campus Facade Photo' : 'Hospital Facade Photo'}
+                  </label>
+                  <div 
+                    onClick={() => buildingInputRef.current?.click()}
+                    className={`mt-1.5 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-6 text-center cursor-pointer transition-all ${buildingPreview ? 'border-solid border-slate-300' : ''}`}
+                  >
+                    <input 
+                      type="file" 
+                      ref={buildingInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleBuildingChange}
+                    />
+                    {buildingPreview ? (
+                      <div className="relative w-full aspect-video flex items-center justify-center bg-white rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+                        <img src={buildingPreview} alt="Facade preview" className="max-h-full max-w-full object-contain" />
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBuildingFile(null);
+                            setBuildingPreview('');
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-slate-600 hover:text-slate-900 rounded-full transition-colors border border-slate-200 shadow-sm"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <FileImage className="h-8 w-8 text-slate-400 mb-2 group-hover:scale-105 transition-transform" />
+                        <p className="text-xs text-slate-700 font-semibold">Upload exterior facade photo</p>
+                        <p className="text-[10px] font-medium text-slate-400 mt-1">Required for Maps listing verification</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Additional Picture: Interior */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {isOttobon ? 'Classroom / Office Photo' : 'Reception / Ward Photo'}
+                  </label>
+                  <div 
+                    onClick={() => interiorInputRef.current?.click()}
+                    className={`mt-1.5 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-6 text-center cursor-pointer transition-all ${interiorPreview ? 'border-solid border-slate-300' : ''}`}
+                  >
+                    <input 
+                      type="file" 
+                      ref={interiorInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleInteriorChange}
+                    />
+                    {interiorPreview ? (
+                      <div className="relative w-full aspect-video flex items-center justify-center bg-white rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+                        <img src={interiorPreview} alt="Interior preview" className="max-h-full max-w-full object-contain" />
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInteriorFile(null);
+                            setInteriorPreview('');
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-slate-600 hover:text-slate-900 rounded-full transition-colors border border-slate-200 shadow-sm"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <FileImage className="h-8 w-8 text-slate-400 mb-2 group-hover:scale-105 transition-transform" />
+                        <p className="text-xs text-slate-700 font-semibold">Upload interior facility photo</p>
+                        <p className="text-[10px] font-medium text-slate-400 mt-1">Optional, boosts GMB visibility score</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Additional Picture: Staff */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {isOttobon ? 'Faculty / Team Photo' : 'Doctors / Staff Photo'}
+                  </label>
+                  <div 
+                    onClick={() => staffInputRef.current?.click()}
+                    className={`mt-1.5 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100/80 rounded-2xl p-6 text-center cursor-pointer transition-all ${staffPreview ? 'border-solid border-slate-300' : ''}`}
+                  >
+                    <input 
+                      type="file" 
+                      ref={staffInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleStaffChange}
+                    />
+                    {staffPreview ? (
+                      <div className="relative w-full aspect-video flex items-center justify-center bg-white rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+                        <img src={staffPreview} alt="Staff preview" className="max-h-full max-w-full object-contain" />
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStaffFile(null);
+                            setStaffPreview('');
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-white/90 hover:bg-white text-slate-600 hover:text-slate-900 rounded-full transition-colors border border-slate-200 shadow-sm"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <FileImage className="h-8 w-8 text-slate-400 mb-2 group-hover:scale-105 transition-transform" />
+                        <p className="text-xs text-slate-700 font-semibold">Upload team/staff photo</p>
+                        <p className="text-[10px] font-medium text-slate-400 mt-1">Optional, builds trust with local searches</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 6. Google Business Profile Link Checkbox */}
+            <div className="space-y-4 border-t border-slate-100 pt-6">
+              <div className="flex items-start">
+                <div className="flex items-center h-5">
+                  <input
+                    id="has-gbp"
+                    type="checkbox"
+                    checked={hasGBP}
+                    onChange={(e) => setHasGBP(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 cursor-pointer"
+                  />
+                </div>
+                <div className="ml-3 text-sm">
+                  <label htmlFor="has-gbp" className="font-bold text-slate-900 cursor-pointer">
+                    We already have a Google Business Profile (GBP) listing
+                  </label>
+                  <p className="text-xs font-medium text-slate-500">
+                    Keep this checked to link your existing Google listing. Uncheck it if you need to create a new profile from scratch.
+                  </p>
+                </div>
+              </div>
+
+              {!hasGBP && (
+                <div className="p-5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 text-slate-700 space-y-3 mt-4 animate-in fade-in duration-300">
+                  <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="h-4.5 w-4.5 text-indigo-600" />
+                    How to Create Your Google Business Profile
+                  </h4>
+                  <p className="text-xs leading-relaxed font-medium text-slate-600">
+                    If you do not have a Google Business listing yet, follow these steps to establish one:
+                  </p>
+                  <ol className="list-decimal pl-5 space-y-2 text-xs font-medium text-slate-700">
+                    <li>Go to the <a href="https://business.google.com/create" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline">Google Business Profile setup page</a>.</li>
+                    <li>Sign in with your Google Workspace or standard Gmail credentials.</li>
+                    <li>Enter the name of your organization (e.g. <b>{formData.companyName || 'Your Business Name'}</b>) and select your primary category.</li>
+                    <li>Add your physical storefront address and choose if you serve customers at that location.</li>
+                    <li>Add your contact phone number (<b>{formData.contactPhone || 'Your Phone'}</b>) and website URL (<b>{formData.website || 'Your Website'}</b>).</li>
+                    <li>Complete verification via phone, email, or video as requested by Google.</li>
+                  </ol>
+                  <p className="text-xs text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200 leading-relaxed font-semibold mt-2">
+                    ⚠️ Note: You can submit this onboarding form now! The system will log a "Pending Setup" status so your agency representative can guide you through Google's verification phase.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 7. Submit Button */}
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`w-full relative flex items-center justify-center gap-2 rounded-2xl bg-slate-900 hover:bg-slate-800 px-6 py-4 text-base font-extrabold text-white shadow-lg hover:shadow-xl hover:scale-[1.005] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all cursor-pointer`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Uploading Assets...
+                  </>
+                ) : (
+                  <>
+                    Submit Registration
+                    <ArrowRight className="h-5 w-5" />
+                  </>
+                )}
+              </button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

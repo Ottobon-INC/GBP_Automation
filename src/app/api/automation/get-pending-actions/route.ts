@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     // 1. Fetch all clients
     const { data: clients, error: clientsErr } = await supabaseAdmin
       .from('clients')
-      .select('*')
+      .select('*, gbp_automations(*)')
       .order('created_at', { ascending: false });
 
     if (clientsErr || !clients) {
@@ -55,12 +55,16 @@ export async function GET(request: NextRequest) {
         const weeklyPlan = payload.weekly_posting_plan || [];
         const blueprint = weeklyPlan.find((p: any) => p.week === nextWeekIndex) || weeklyPlan[0];
 
+        const gbpData = Array.isArray(client.gbp_automations) ? client.gbp_automations[0] : client.gbp_automations;
+        const primaryCategory = gbpData?.primary_category || client.primary_category || 'Business';
+        const targetKeywords = gbpData?.target_keywords || client.target_keywords || [];
+
         if (blueprint) {
           nextPostCopy = await generatePostCopy(
             client.company_name,
-            client.primary_category,
+            primaryCategory,
             client.service_area,
-            client.target_keywords || [],
+            targetKeywords,
             blueprint.topic,
             businessType
           );

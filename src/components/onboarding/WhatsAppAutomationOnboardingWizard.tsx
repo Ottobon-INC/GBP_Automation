@@ -416,8 +416,7 @@ export default function WhatsAppAutomationOnboardingWizard({ brand = 'medcy' }: 
       // Check if we should update an existing client or insert a new one
       const existingMatch = existingClients.find(
         c => c.id === selectedClientId || 
-             c.company_name?.toLowerCase() === hospitalName.trim().toLowerCase() ||
-             (c.contact_email && c.contact_email.toLowerCase() === supportEmail.trim().toLowerCase())
+             c.company_name?.toLowerCase() === hospitalName.trim().toLowerCase()
       );
 
       let dbError = null;

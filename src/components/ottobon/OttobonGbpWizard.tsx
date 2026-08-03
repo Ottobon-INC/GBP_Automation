@@ -25,7 +25,9 @@ import WebsiteOnboardingWizard from '@/components/onboarding/WebsiteOnboardingWi
 import PatientManagementOnboardingWizard from '@/components/onboarding/PatientManagementOnboardingWizard';
 import WhatsAppAutomationOnboardingWizard from '@/components/onboarding/WhatsAppAutomationOnboardingWizard';
 
-export default function ClientOnboardingFormContent({ brand }: { brand: string }) {
+export default function OttobonGbpWizard() {
+  const isOttobon = true;
+  const brand = 'ottobon';
 
   const [businessType, setBusinessType] = useState<'healthcare' | 'education'>('healthcare');
   const [formData, setFormData] = useState({
@@ -375,10 +377,6 @@ export default function ClientOnboardingFormContent({ brand }: { brand: string }
       setIsSubmitting(false);
     }
   };
-
-  const isOttobon = true;
-  const brand = 'ottobon';
-  
   // Style config variables
   const accentColor = isOttobon ? 'text-amber-800' : 'text-emerald-700';
   const focusBorder = isOttobon ? 'focus:border-amber-700 focus:ring-amber-500/10' : 'focus:border-emerald-700 focus:ring-emerald-500/10';

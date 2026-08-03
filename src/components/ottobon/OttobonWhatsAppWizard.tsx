@@ -76,7 +76,9 @@ const SECTIONS = [
 
 const WORKING_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export default function WhatsAppAutomationOnboardingWizard({ brand = 'medcy' }: WhatsAppAutomationOnboardingWizardProps) {
+export default function OttobonWhatsAppWizard() {
+  const isOttobon = true;
+  const brand = 'ottobon';
   const [currentSection, setCurrentSection] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);

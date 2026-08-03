@@ -7,7 +7,7 @@ interface OnboardingTypeSelectorProps {
 }
 
 export default function OnboardingTypeSelector({ brand }: OnboardingTypeSelectorProps) {
-  const isOttobon = brand === 'ottobon';
+  const isOttobon = false;
 
   const brandTitle = isOttobon ? 'Ottobon Agency Portal' : 'Medcy Health Tech Portal';
   const brandSub = isOttobon

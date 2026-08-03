@@ -92,7 +92,7 @@ function OnboardingSuccessContent() {
   }
 
   const isWebsiteOnboarding = type === 'website' || client.onboarding_details?.type === 'website_onboarding';
-  const isOttobon = false;
+  const isOttobon = true;
 
   if (isWebsiteOnboarding) {
     const badgeStyleWeb = isOttobon

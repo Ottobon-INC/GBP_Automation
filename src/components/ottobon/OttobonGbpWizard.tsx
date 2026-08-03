@@ -376,7 +376,8 @@ export default function ClientOnboardingFormContent({ brand }: { brand: string }
     }
   };
 
-  const isOttobon = false;
+  const isOttobon = true;
+  const brand = 'ottobon';
   
   // Style config variables
   const accentColor = isOttobon ? 'text-amber-800' : 'text-emerald-700';

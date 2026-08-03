@@ -81,8 +81,8 @@ const SECTION_TITLES: Record<number, { title: string; desc: string }> = {
   23: { title: 'Final Summary Review', desc: 'Review all entered specifications before submitting to our development team.' }
 };
 
-export default function WebsiteOnboardingWizard({ brand }: WebsiteOnboardingWizardProps) {
-  const isOttobon = false;
+export default function OttobonWebsiteWizard() {
+  const isOttobon = true; const brand = 'ottobon';
   const storageKey = `website_onboarding_draft_${brand}`;
 
   const [currentSection, setCurrentSection] = useState<number>(1);

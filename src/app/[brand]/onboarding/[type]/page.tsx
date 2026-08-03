@@ -15,7 +15,7 @@ interface PageProps {
 export default async function WizardRouter({ params }: PageProps) {
   const { brand, type } = await Promise.resolve(params);
 
-  if (brand !== 'medcy' && brand !== 'ottobon') {
+  if (brand !== 'medcy') {
     notFound();
   }
 
@@ -25,12 +25,6 @@ export default async function WizardRouter({ params }: PageProps) {
     if (type === 'website') return <WebsiteOnboardingWizard brand={brand} />;
     if (type === 'patient_management') return <PatientManagementOnboardingWizard brand={brand} />;
     if (type === 'whatsapp_automation') return <WhatsAppAutomationOnboardingWizard brand={brand} />;
-  }
-
-  // Ottobon Specific Routes
-  if (brand === 'ottobon') {
-    if (type === 'gbp') return <ClientOnboardingFormContent brand={brand} />;
-    if (type === 'website') return <WebsiteOnboardingWizard brand={brand} />;
   }
 
   notFound();

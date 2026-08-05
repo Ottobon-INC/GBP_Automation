@@ -113,12 +113,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch client to determine brand for redirect
+    const { data: clientData } = await supabaseAdmin
+      .from('clients')
+      .select('onboarding_details')
+      .eq('id', clientId)
+      .single();
+      
+    let brandPath = 'medcy';
+    if (
+      clientData?.onboarding_details?.brand === 'ottobon' || 
+      clientData?.onboarding_details?.business_type === 'education' || 
+      clientData?.onboarding_details?.business_type === 'Educational Institute'
+    ) {
+      brandPath = 'ottobon';
+    }
+
     // Route based on action:
     // 'link' = client already has GBP → go to dashboard
     // 'create' = our team creates GBP for them → go to success tracker
     // In both cases, onboarding is now complete! Redirect client to the success page
     return NextResponse.redirect(
-      new URL(`/onboarding/success?client_id=${clientId}`, request.url)
+      new URL(`/${brandPath}/onboarding/success?client_id=${clientId}`, request.url)
     );
 
   } catch (error: any) {

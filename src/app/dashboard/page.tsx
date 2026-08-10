@@ -59,6 +59,33 @@ function DashboardContent() {
   const [copiedDesc, setCopiedDesc] = useState(false);
   const [selectedCompIndex, setSelectedCompIndex] = useState<number | null>(null);
 
+  const [googleLocations, setGoogleLocations] = useState<any[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [selectedGoogleLocationId, setSelectedGoogleLocationId] = useState('');
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
+  const fetchGoogleLocations = async (clientId: string) => {
+    setLoadingLocations(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/automation/get-locations?client_id=${clientId}`);
+      const data = await res.json();
+      if (res.ok) {
+        setGoogleLocations(data.locations || []);
+        if (data.locations && data.locations.length > 0) {
+          setSelectedGoogleLocationId(data.locations[0].name);
+        }
+        setShowLocationModal(true);
+      } else {
+        setError('Failed to fetch locations: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
   // Photo scheduler states
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoCategory, setPhotoCategory] = useState<string>('ADDITIONAL');
@@ -629,24 +656,7 @@ function DashboardContent() {
                         Pending Setup by Agency
                       </div>
                       <button
-                        onClick={async () => {
-                          try {
-                            const res = await fetch('/api/automation/activate-profile', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ client_id: selectedClient.id })
-                            });
-                            const data = await res.json();
-                            if (res.ok) {
-                              alert('✅ Google Business Profile connected and activated successfully!');
-                              window.location.reload();
-                            } else {
-                              alert('❌ Activation Error: ' + (data.error || 'Failed to activate'));
-                            }
-                          } catch (e: any) {
-                            alert('❌ Network Error: ' + e.message);
-                          }
-                        }}
+                        onClick={() => fetchGoogleLocations(selectedClient.id)}
                         className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-full shadow-md transition-all cursor-pointer flex items-center gap-1.5"
                         title="Link and activate Google Business Profile for immediate publishing"
                       >
@@ -667,10 +677,17 @@ function DashboardContent() {
                         <span className="h-2 w-2 rounded-full bg-emerald-500" />
                         Linked & Connected
                       </div>
+                      <button
+                        onClick={() => fetchGoogleLocations(selectedClient.id)}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300 underline-offset-2 transition-colors cursor-pointer"
+                        title="Change the Google Map location linked to this profile"
+                      >
+                        Change Location
+                      </button>
+                      <span className="text-slate-300">|</span>
                       <a
                         href={`/api/auth/google?client_id=${selectedClient.id}&action=link`}
-                        className="text-xs font-bold text-slate-500 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
-                        title="Reconnect or switch the Google Account linked to this profile"
+                        className="text-xs font-bold text-slate-500 hover:text-slate-800 underline decoration-slate-300 underline-offset-2 transition-colors cursor-pointer"
                       >
                         Reconnect OAuth
                       </a>
@@ -1612,6 +1629,98 @@ function DashboardContent() {
             </div>
           </div>
         )}
+
+      {/* Google Location Selector Modal */}
+      {showLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200">
+            <h3 className="text-xl font-extrabold text-slate-900 mb-2">Select Google Location</h3>
+            <p className="text-sm font-medium text-slate-600 mb-6">
+              Choose the exact Google Business Profile location to link with {selectedClient?.business_name}.
+            </p>
+
+            {loadingLocations ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3">
+                <Loader2 className="h-8 w-8 text-indigo-600 animate-spin" />
+                <p className="text-sm font-bold text-slate-500">Fetching accessible locations from Google...</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-2 mb-6">
+                {googleLocations.length === 0 ? (
+                  <div className="p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 text-sm font-medium">
+                    No locations found for this Google Account. Please ensure you have claimed the business on Google My Business.
+                  </div>
+                ) : (
+                  googleLocations.map((loc) => (
+                    <label 
+                      key={loc.name} 
+                      className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        selectedGoogleLocationId === loc.name 
+                          ? 'border-indigo-600 bg-indigo-50/50' 
+                          : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="location_id" 
+                        value={loc.name}
+                        checked={selectedGoogleLocationId === loc.name}
+                        onChange={(e) => setSelectedGoogleLocationId(e.target.value)}
+                        className="mt-1 w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-600"
+                      />
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">{loc.title || 'Unnamed Location'}</div>
+                        <div className="text-xs font-medium text-slate-500 mt-1 flex gap-2">
+                          <span>ID: {loc.name.replace('locations/', '')}</span>
+                          {loc.storeCode && <span>• Code: {loc.storeCode}</span>}
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button 
+                onClick={() => setShowLocationModal(false)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-extrabold rounded-full transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                disabled={loadingLocations || !selectedGoogleLocationId}
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/automation/activate-profile', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        client_id: selectedClient.id,
+                        location_id: selectedGoogleLocationId
+                      })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      alert('✅ Google Business Profile connected and activated successfully!');
+                      setShowLocationModal(false);
+                      window.location.reload();
+                    } else {
+                      alert('❌ Activation Error: ' + (data.error || 'Failed to activate'));
+                    }
+                  } catch (e: any) {
+                    alert('❌ Network Error: ' + e.message);
+                  }
+                }}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-extrabold rounded-full shadow-md transition-all flex items-center gap-2"
+              >
+                <Check className="h-4 w-4" />
+                Confirm Location
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       </main>
     </div>

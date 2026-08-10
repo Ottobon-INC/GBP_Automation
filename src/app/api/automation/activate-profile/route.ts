@@ -9,7 +9,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing client_id' }, { status: 400 });
     }
 
-    const activeLocationId = location_id || `locations/active_${client_id.slice(0, 8)}`;
+    if (!location_id) {
+      return NextResponse.json({ error: 'Missing location_id' }, { status: 400 });
+    }
+
+    const activeLocationId = location_id;
 
     // Check if gbp_accounts record exists
     const { data: existing, error: fetchErr } = await supabaseAdmin
@@ -27,8 +31,6 @@ export async function POST(request: NextRequest) {
         .from('gbp_accounts')
         .update({
           google_location_id: activeLocationId,
-          refresh_token: 'active_agency_token',
-          access_token: 'mock_access_token',
           profile_optimized: true
         })
         .eq('id', existing.id);
@@ -43,8 +45,6 @@ export async function POST(request: NextRequest) {
           {
             client_id,
             google_location_id: activeLocationId,
-            refresh_token: 'active_agency_token',
-            access_token: 'mock_access_token',
             profile_optimized: true
           }
         ]);

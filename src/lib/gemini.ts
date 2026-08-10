@@ -86,8 +86,8 @@ Generate recommendations matching the JSON schema below. Output ONLY valid JSON.
     "Extract specific competitor weaknesses from reviews e.g. long waiting queues or lack of specific doctor specialists or courses. Phrase as an actionable opportunity."
   ],
   "recommended_categories": {
-    "primary": "Suggest best primary category fitting the profile",
-    "secondary": ["Suggest 2 to 4 secondary/hidden categories found in competitors to help rank for other search terms"]
+    "primary": "Suggest best primary category fitting the profile. CRITICAL STRICT RULE: THIS MUST BE AN EXACT, OFFICIAL GOOGLE BUSINESS CATEGORY NAME (e.g., 'Fertility clinic', 'Medical clinic', 'Hospital', 'Educational institution', 'School', 'University'). DO NOT invent or modify category names (e.g., 'IVF & Fertility Center' is invalid).",
+    "secondary": ["Suggest 2 to 4 secondary categories to help rank for other search terms. CRITICAL STRICT RULE: MUST BE EXACT OFFICIAL GOOGLE CATEGORIES (e.g., 'Women\\'s health clinic')."]
   },
   "keyword_recommendations": [
     "Suggest 5 highly relevant local search keywords client should target based on competitor gaps"

@@ -70,7 +70,6 @@ const VALID_GCIDS = new Set([
   'categories/gcid:private_school',
   // Healthcare & Medical
   'categories/gcid:fertility_clinic',
-  'categories/gcid:womens_health_clinic',
   'categories/gcid:medical_center',
   'categories/gcid:maternity_hospital',
   'categories/gcid:gynecologist',
@@ -113,8 +112,8 @@ function cleanGmbCategory(catName: string): string {
     'ivf and fertility center': 'fertility_clinic',
     'ivf center': 'fertility_clinic',
     'fertility clinic': 'fertility_clinic',
-    "women's health clinic": 'womens_health_clinic',
-    'womens health clinic': 'womens_health_clinic',
+    "women's health clinic": 'gynecologist',
+    'womens health clinic': 'gynecologist',
     'medical center': 'medical_center',
     'medical centre': 'medical_center',
     'maternity hospital': 'maternity_hospital',
@@ -151,6 +150,12 @@ export function formatE164Phone(phone: string): string {
   if (cleaned.startsWith('+')) {
     return cleaned;
   }
+  
+  // Strip leading 0 if present (common in India for 10-digit mobiles)
+  if (cleaned.startsWith('0') && cleaned.length > 10) {
+    cleaned = cleaned.substring(1);
+  }
+  
   // If it's a 10-digit number, assume India (+91)
   if (cleaned.length === 10) {
     return `+91${cleaned}`;
@@ -177,15 +182,18 @@ export async function pushMetadataToGMB(
 ): Promise<boolean> {
   // Format primary category and allow any valid Google Category Resource Name
   let cleanedPrimary = cleanGmbCategory(primaryCategory);
-  if (!VALID_GCIDS.has(cleanedPrimary) && !cleanedPrimary.startsWith('categories/gcid:')) {
+  if (!VALID_GCIDS.has(cleanedPrimary)) {
     console.log(`Primary category "${primaryCategory}" is not in whitelist. Defaulting to medical center.`);
     cleanedPrimary = 'categories/gcid:medical_center';
   }
 
-  // Format secondary categories and filter out empty ones
-  const cleanedSecondaries = secondaryCategories
+  // Format secondary categories, filter out invalid/empty ones, remove duplicates, and ensure primary is not in secondary list
+  const rawSecondaries = secondaryCategories
     .map(cat => cleanGmbCategory(cat))
-    .filter(cat => VALID_GCIDS.has(cat) || cat.startsWith('categories/gcid:'));
+    .filter(cat => VALID_GCIDS.has(cat));
+    
+  const uniqueSecondaries = [...new Set(rawSecondaries)].filter(cat => cat !== cleanedPrimary);
+  const cleanedSecondaries = uniqueSecondaries;
 
   const formattedPhone = primaryPhone ? formatE164Phone(primaryPhone) : undefined;
 
@@ -215,7 +223,7 @@ export async function pushMetadataToGMB(
     };
   }
   if (websiteUri) {
-    gmbPayload.websiteUri = websiteUri;
+    gmbPayload.websiteUri = websiteUri.startsWith('http') ? websiteUri : `https://${websiteUri}`;
   }
 
   if (isAgencyOrMock(locationId) || isAgencyOrMock(accessToken)) {
@@ -245,8 +253,38 @@ export async function pushMetadataToGMB(
 
     return true;
   } catch (err: any) {
-    console.error(`GMB full metadata patch failed:`, JSON.stringify(err.response?.data || err.message, null, 2));
-    throw new Error(`Google API rejected the update: ${err.response?.data?.error?.message || err.message}. Please check if the categories are valid Google categories.`);
+    const errorData = err.response?.data;
+    
+    // Check if the error is specifically about the phone number being throttled/invalid
+    const isPhoneError = errorData?.error?.details?.some(
+      (d: any) => d.metadata?.field_mask === 'phone_numbers.primary_phone' || d.reason === 'THROTTLED'
+    );
+    
+    if (isPhoneError && formattedPhone) {
+      console.warn('Google API rejected the phone number (likely THROTTLED or under review). Retrying without phone number update...');
+      
+      delete gmbPayload.phoneNumbers;
+      let fallbackMask = 'profile.description,categories';
+      if (websiteUri) fallbackMask += ',websiteUri';
+      
+      const fallbackUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/locations/${rawLocId}?updateMask=${fallbackMask}`;
+      
+      try {
+        await axios.patch(fallbackUrl, gmbPayload, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        return true;
+      } catch (fallbackErr: any) {
+        console.error(`GMB fallback patch failed:`, JSON.stringify(fallbackErr.response?.data || fallbackErr.message, null, 2));
+        throw new Error(`Google API rejected the update: ${fallbackErr.response?.data?.error?.message || fallbackErr.message}`);
+      }
+    }
+
+    console.error(`GMB full metadata patch failed:`, JSON.stringify(errorData || err.message, null, 2));
+    throw new Error(`Google API rejected the update: ${errorData?.error?.message || err.message}. Please check if the categories are valid Google categories.`);
   }
 }
 

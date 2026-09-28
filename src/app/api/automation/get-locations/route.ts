@@ -76,6 +76,15 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Failed to get GMB locations:', error.response?.data || error.message);
+    
+    // Check if the error is specifically a missing scope / permission denied error
+    if (error.response?.status === 403 || error.response?.data?.error?.status === 'PERMISSION_DENIED') {
+      return NextResponse.json(
+        { error: 'Missing Permissions. You did not check the "Manage your business profiles" box when connecting your Google account. Please reconnect and check all boxes.' },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to retrieve locations from Google', details: error.message },
       { status: 500 }

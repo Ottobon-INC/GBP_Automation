@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Fetch Client Info (for phone and website)
     const { data: client, error: clientErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('*, gbp_automations(*)')
       .eq('id', clientId)
       .single();

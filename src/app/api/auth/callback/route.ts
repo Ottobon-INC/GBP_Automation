@@ -45,6 +45,13 @@ export async function GET(request: NextRequest) {
     // Exchange the authorization code for access and refresh tokens
     const { tokens } = await oauth2Client.getToken(code);
 
+    // Verify that the user actually checked the box to grant the GBP scope!
+    if (tokens.scope && !tokens.scope.includes('https://www.googleapis.com/auth/business.manage')) {
+      return NextResponse.redirect(
+        new URL(`/?error=missing_scopes&hint=you_must_check_the_box_for_business_profiles`, request.url)
+      );
+    }
+
     if (!tokens.refresh_token) {
       // This can happen if the user has already authorized before and consent was not re-prompted
       return NextResponse.redirect(
@@ -113,9 +120,46 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // --- NEW LOGIC: ATTEMPT TO AUTO-FETCH AND SET GOOGLE LOCATION ID ---
+    try {
+      console.log(`Auto-fetching locations for client ${clientId} after OAuth...`);
+      const accountsRes = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+        headers: { Authorization: `Bearer ${tokens.access_token}` }
+      });
+      const accountsData = await accountsRes.json();
+      
+      if (accountsData.accounts && accountsData.accounts.length > 0) {
+        // Just grab the first account
+        const accountName = accountsData.accounts[0].name;
+        
+        const locationsRes = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name`, {
+          headers: { Authorization: `Bearer ${tokens.access_token}` }
+        });
+        const locationsData = await locationsRes.json();
+        
+        if (locationsData.locations && locationsData.locations.length > 0) {
+          const firstLocationId = locationsData.locations[0].name;
+          
+          // Update the gbp_accounts row we just inserted/updated
+          await supabaseAdmin
+            .from('gbp_accounts')
+            .update({ 
+              google_location_id: firstLocationId,
+              profile_optimized: true // they now have an active location
+            })
+            .eq('client_id', clientId);
+            
+          console.log(`Successfully auto-mapped location ${firstLocationId} for client ${clientId}`);
+        }
+      }
+    } catch (locErr: any) {
+      console.warn(`Could not auto-fetch location for client ${clientId}. Will remain pending.`, locErr.message);
+    }
+    // -------------------------------------------------------------------
+
     // Fetch client to determine brand for redirect
     const { data: clientData } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('onboarding_details')
       .eq('id', clientId)
       .single();

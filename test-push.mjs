@@ -60,7 +60,7 @@ async function testPush() {
   const clientId = '2def7b97-94a2-4a86-b03d-5929d0778acb';
   
   const { data: gbpAccount } = await supabase.from('gbp_accounts').select('*').eq('client_id', clientId).single();
-  const { data: client } = await supabase.from('clients').select('*, gbp_automations(*)').eq('id', clientId).single();
+  const { data: client } = await supabase.from('gbp_clients').select('*, gbp_automations(*)').eq('id', clientId).single();
   
   const primaryCategory = gbpAccount.ai_optimized_payload.recommended_categories?.primary;
   const secondaryCategories = gbpAccount.ai_optimized_payload.recommended_categories?.secondary || [];

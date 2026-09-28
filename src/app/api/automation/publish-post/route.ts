@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     if (postId) {
       console.log(`Weekly Post Publisher: Querying details for specific post record ${postId}...`);
       const { data: post, error: postErr } = await supabaseAdmin
-        .from('posts')
+        .from('gbp_posts')
         .select('*')
         .eq('id', postId)
         .single();
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 
         // Update post log status
         await supabaseAdmin
-          .from('posts')
+          .from('gbp_posts')
           .update({
             google_post_id: mediaName,
             status: 'published',
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
         );
 
         await supabaseAdmin
-          .from('posts')
+          .from('gbp_posts')
           .update({
             google_post_id: publishResponse.name,
             status: 'published',
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: client, error: clientErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('*, gbp_automations(*)')
       .eq('id', clientId)
       .single();
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { count } = await supabaseAdmin
-      .from('posts')
+      .from('gbp_posts')
       .select('*', { count: 'exact', head: true })
       .eq('client_id', clientId)
       .eq('status', 'published');
@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
     );
 
     const { error: dbInsertErr } = await supabaseAdmin
-      .from('posts')
+      .from('gbp_posts')
       .insert([
         {
           client_id: clientId,

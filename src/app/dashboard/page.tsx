@@ -34,6 +34,12 @@ import {
 function DashboardContent() {
   const searchParams = useSearchParams();
   const initialClientId = searchParams.get('client_id');
+  const initialBrandParam = searchParams.get('brand');
+
+  // Brand filter ('all' | 'medcy' | 'ottobon')
+  const [brandFilter, setBrandFilter] = useState<'all' | 'medcy' | 'ottobon'>(
+    initialBrandParam === 'medcy' ? 'medcy' : initialBrandParam === 'ottobon' ? 'ottobon' : 'all'
+  );
 
   // List of all clients
   const [clients, setClients] = useState<any[]>([]);
@@ -102,16 +108,23 @@ function DashboardContent() {
   const fetchClientsList = async () => {
     try {
       const { data, error: err } = await supabase
-        .from('clients')
-        .select('id, company_name, primary_category, logo_url')
+        .from('gbp_clients')
+        .select('id, company_name, primary_category, logo_url, onboarding_details')
         .order('created_at', { ascending: false });
 
       if (err) throw err;
-      setClients(data || []);
+      const allClients = data || [];
+      setClients(allClients);
       
-      // If there is no client selected yet but list has items, select the first one automatically
-      if (!selectedClientId && data && data.length > 0) {
-        setSelectedClientId(data[0].id);
+      // Determine initial selection based on brandFilter if no client selected yet
+      if (!selectedClientId && allClients.length > 0) {
+        let initialList = allClients;
+        if (brandFilter === 'medcy') {
+          initialList = allClients.filter(c => c.onboarding_details?.brand === 'medcy' || c.onboarding_details?.business_type === 'healthcare');
+        } else if (brandFilter === 'ottobon') {
+          initialList = allClients.filter(c => c.onboarding_details?.brand === 'ottobon' || c.onboarding_details?.business_type === 'education');
+        }
+        setSelectedClientId(initialList.length > 0 ? initialList[0].id : allClients[0].id);
       }
     } catch (err: any) {
       setError(`Failed to retrieve clients: ${err.message}`);
@@ -129,7 +142,7 @@ function DashboardContent() {
     try {
       // 1. Client profile settings
       const { data: clientData, error: clientErr } = await supabase
-        .from('clients')
+        .from('gbp_clients')
         .select('*')
         .eq('id', clientId)
         .single();
@@ -149,7 +162,7 @@ function DashboardContent() {
 
       // 3. Competitor scrapes
       const { data: compData, error: compErr } = await supabase
-        .from('competitor_scrapes')
+        .from('gbp_competitor_scrapes')
         .select('*')
         .eq('client_id', clientId);
 
@@ -158,7 +171,7 @@ function DashboardContent() {
 
       // 4. Fetch published posts history
       const { data: postsData, error: postsErr } = await supabase
-        .from('posts')
+        .from('gbp_posts')
         .select('*')
         .eq('client_id', clientId)
         .order('scheduled_at', { ascending: false });
@@ -168,7 +181,7 @@ function DashboardContent() {
 
       // 5. Fetch synced Google Reviews
       const { data: reviewsData, error: reviewsErr } = await supabase
-        .from('reviews')
+        .from('gbp_reviews')
         .select('*')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
@@ -346,7 +359,7 @@ function DashboardContent() {
       const scheduledTime = photoScheduleDate ? new Date(photoScheduleDate).toISOString() : new Date().toISOString();
 
       const { data: newPost, error: dbErr } = await supabase
-        .from('posts')
+        .from('gbp_posts')
         .insert([
           {
             client_id: selectedClientId,
@@ -414,7 +427,7 @@ function DashboardContent() {
         doctors: updatedList
       };
       const { error: dbErr } = await supabase
-        .from('clients')
+        .from('gbp_clients')
         .update({ onboarding_details: updatedDetails })
         .eq('id', selectedClientId);
       if (dbErr) throw dbErr;
@@ -432,7 +445,7 @@ function DashboardContent() {
       const bioText = `Meet our specialist: ${doc.name} - ${doc.specialty}. ${doc.bio || ''}`;
       
       const { data: newPost, error: dbErr } = await supabase
-        .from('posts')
+        .from('gbp_posts')
         .insert([
           {
             client_id: selectedClientId,
@@ -533,40 +546,115 @@ function DashboardContent() {
   const gmbPosts = posts.filter(p => !p.call_to_action_type?.startsWith('MEDIA_'));
   const gmbPhotos = posts.filter(p => p.call_to_action_type?.startsWith('MEDIA_'));
 
+  const filteredClients = clients.filter(c => {
+    if (brandFilter === 'medcy') {
+      return c.onboarding_details?.brand === 'medcy' || c.onboarding_details?.business_type === 'healthcare';
+    }
+    if (brandFilter === 'ottobon') {
+      return c.onboarding_details?.brand === 'ottobon' || c.onboarding_details?.business_type === 'education';
+    }
+    return true;
+  });
+
+  const portalTitle = brandFilter === 'medcy' ? 'MEDCY HEALTHCARE' : brandFilter === 'ottobon' ? 'OTTOBON EDUCATION' : 'AGENCY MASTER';
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col lg:flex-row">
       
       {/* 1. Sidebar - Client Selector */}
       <aside className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-slate-200 bg-white flex flex-col shrink-0 shadow-xs z-10">
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-slate-900 rounded-lg text-white shadow-xs">
-              <Sparkles className="h-4.5 w-4.5 text-white" />
+        <div className="p-5 border-b border-slate-200 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`p-1.5 rounded-lg text-white shadow-xs ${brandFilter === 'medcy' ? 'bg-emerald-600' : brandFilter === 'ottobon' ? 'bg-indigo-600' : 'bg-slate-900'}`}>
+                <Sparkles className="h-4.5 w-4.5 text-white" />
+              </div>
+              <span className="font-extrabold text-sm tracking-wider text-slate-900">
+                {portalTitle}
+              </span>
             </div>
-            <span className="font-extrabold text-base tracking-wider text-slate-900">
-              MEDCY PORTAL
-            </span>
+            <a
+              href="/"
+              className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-full border border-slate-200 transition-all cursor-pointer"
+              title="Return to Brand Selection Portal"
+            >
+              ← Portal
+            </a>
           </div>
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200/80">
-            Admin
-          </span>
+
+          {/* Vertical Switcher Tabs */}
+          <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-center">
+            <button
+              onClick={() => {
+                setBrandFilter('medcy');
+                const medcyList = clients.filter(c => c.onboarding_details?.brand === 'medcy' || c.onboarding_details?.business_type === 'healthcare');
+                if (medcyList.length > 0 && !medcyList.find(c => c.id === selectedClientId)) {
+                  setSelectedClientId(medcyList[0].id);
+                }
+              }}
+              className={`py-1.5 px-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                brandFilter === 'medcy'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              🩺 Medcy
+            </button>
+            <button
+              onClick={() => {
+                setBrandFilter('ottobon');
+                const ottobonList = clients.filter(c => c.onboarding_details?.brand === 'ottobon' || c.onboarding_details?.business_type === 'education');
+                if (ottobonList.length > 0 && !ottobonList.find(c => c.id === selectedClientId)) {
+                  setSelectedClientId(ottobonList[0].id);
+                }
+              }}
+              className={`py-1.5 px-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                brandFilter === 'ottobon'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              🎓 Ottobon
+            </button>
+            <button
+              onClick={() => setBrandFilter('all')}
+              className={`py-1.5 px-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                brandFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              🌐 All ({clients.length})
+            </button>
+          </div>
         </div>
 
-        <div className="p-4 bg-slate-50 border-b border-slate-200">
-          <p className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Onboarded Clients ({clients.length})</p>
+        <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <p className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+            {brandFilter === 'medcy' ? 'Hospitals & Clinics' : brandFilter === 'ottobon' ? 'Educational Institutes' : 'All Clients'} ({filteredClients.length})
+          </p>
+          <a
+            href={`/${brandFilter === 'ottobon' ? 'ottobon' : 'medcy'}/onboarding`}
+            className="text-[10px] font-extrabold text-indigo-700 hover:text-indigo-900 flex items-center gap-1 hover:underline"
+          >
+            <Plus className="h-3 w-3" /> Add Client
+          </a>
         </div>
 
         <nav className="flex-grow overflow-y-auto p-3 space-y-1.5">
-          {clients.length > 0 ? (
-            clients.map((c) => {
+          {filteredClients.length > 0 ? (
+            filteredClients.map((c) => {
               const isSelected = selectedClientId === c.id;
+              const isHealthcare = (c.onboarding_details?.business_type || 'healthcare') === 'healthcare';
               return (
                 <button
                   key={c.id}
                   onClick={() => setSelectedClientId(c.id)}
                   className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all text-left group cursor-pointer ${
                     isSelected 
-                      ? 'bg-slate-900 border border-slate-900 text-white shadow-md' 
+                      ? isHealthcare 
+                        ? 'bg-emerald-700 border border-emerald-700 text-white shadow-md'
+                        : 'bg-indigo-700 border border-indigo-700 text-white shadow-md'
                       : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-transparent'
                   }`}
                 >
@@ -575,26 +663,26 @@ function DashboardContent() {
                       src={c.logo_url} 
                       alt="" 
                       className={`w-9 h-9 rounded-lg object-contain p-0.5 shrink-0 ${
-                        isSelected ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-slate-200 shadow-2xs'
+                        isSelected ? 'bg-white border border-transparent' : 'bg-white border border-slate-200 shadow-2xs'
                       }`} 
                     />
                   ) : (
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      isSelected ? 'bg-slate-800 border border-slate-700 text-indigo-300' : 'bg-slate-100 border border-slate-200 text-slate-500 group-hover:text-slate-900'
+                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 border border-slate-200 text-slate-500 group-hover:text-slate-900'
                     }`}>
                       <Building2 className="h-4.5 w-4.5" />
                     </div>
                   )}
                   <div className="overflow-hidden">
                     <p className="text-sm font-bold truncate">{c.company_name}</p>
-                    <p className={`text-[10px] truncate mt-0.5 font-medium ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>{c.primary_category}</p>
+                    <p className={`text-[10px] truncate mt-0.5 font-medium ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>{c.primary_category}</p>
                   </div>
                 </button>
               );
             })
           ) : (
             <div className="p-8 text-center text-xs text-slate-500 font-medium">
-              No clients found. Share the onboarding link to add clients.
+              No clients found in this category. Click "Add Client" to onboard one.
             </div>
           )}
         </nav>

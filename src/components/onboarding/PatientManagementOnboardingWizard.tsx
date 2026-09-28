@@ -129,7 +129,7 @@ export default function PatientManagementOnboardingWizard({ brand }: PatientMana
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const { data } = await supabase.from('clients').select('*').order('company_name', { ascending: true });
+        const { data } = await supabase.from('gbp_clients').select('*').order('company_name', { ascending: true });
         if (data) setExistingClients(data);
       } catch (e) {
         console.error('Error fetching clients:', e);
@@ -310,7 +310,7 @@ export default function PatientManagementOnboardingWizard({ brand }: PatientMana
         };
 
         const { error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .update({
             company_name: clinicName,
             contact_email: email,
@@ -323,7 +323,7 @@ export default function PatientManagementOnboardingWizard({ brand }: PatientMana
         dbError = error;
       } else {
         const { data, error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .insert([
             {
               company_name: clinicName,
@@ -351,7 +351,7 @@ export default function PatientManagementOnboardingWizard({ brand }: PatientMana
       // --- NEW: INSERT INTO patient_management_intakes TABLE ---
       if (newClientId) {
         const { error: pmError } = await supabase
-          .from('patient_management_intakes')
+          .from('gbp_patient_management_intakes')
           .insert({
             client_id: newClientId,
             form_data: payload,

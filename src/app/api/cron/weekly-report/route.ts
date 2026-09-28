@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { data: clients, error: clientsErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('*')
       .in('id', approvedClientIds);
 
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       };
 
       await supabaseAdmin
-        .from('clients')
+        .from('gbp_clients')
         .update({ onboarding_details: updatedDetails })
         .eq('id', client.id);
 

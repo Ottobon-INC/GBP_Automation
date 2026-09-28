@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const clientIds = approvedAccounts.map(a => a.client_id);
     const { data: clients, error: clientErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('*')
       .in('id', clientIds);
 
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
         // B. Daily Posting (Alternating Text & Photo)
         const { data: lastPost } = await supabaseAdmin
-          .from('posts')
+          .from('gbp_posts')
           .select('call_to_action_type')
           .eq('client_id', client.id)
           .order('created_at', { ascending: false })
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
           );
           
           const { data: insertedPost } = await supabaseAdmin
-            .from('posts')
+            .from('gbp_posts')
             .insert({
               client_id: client.id,
               topic: `Daily Update: ${keyword}`,
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
             const mediaType = randomImage === client.logo_url ? 'MEDIA_PROFILE' : 'MEDIA_AT_WORK';
             
             const { data: insertedPost } = await supabaseAdmin
-              .from('posts')
+              .from('gbp_posts')
               .insert({
                 client_id: client.id,
                 topic: `Daily Photo Showcase`,

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Fetch all clients
     const { data: clients, error: clientsErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('*, gbp_automations(*)')
       .order('created_at', { ascending: false });
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         .maybeSingle();
 
       const { data: reviews } = await supabaseAdmin
-        .from('reviews')
+        .from('gbp_reviews')
         .select('*')
         .eq('client_id', client.id);
 
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         
         // Count already published posts
         const { count } = await supabaseAdmin
-          .from('posts')
+          .from('gbp_posts')
           .select('id', { count: 'exact', head: true })
           .eq('client_id', client.id)
           .eq('status', 'published');

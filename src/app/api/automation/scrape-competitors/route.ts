@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Fetch Client Profile from Supabase
     const { data: client, error: clientErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('*, gbp_automations(*)')
       .eq('id', clientId)
       .single();
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     // Check if we already have scraped competitors for this client
     if (!forceRefresh) {
       const { data: cachedCompetitors } = await supabaseAdmin
-        .from('competitor_scrapes')
+        .from('gbp_competitor_scrapes')
         .select('*')
         .eq('client_id', clientId);
 
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       // 4. Save Scrape Data to Supabase (`public.competitor_scrapes`)
       // Delete older scrapes for this client first to avoid cluttering
       await supabaseAdmin
-        .from('competitor_scrapes')
+        .from('gbp_competitor_scrapes')
         .delete()
         .eq('client_id', clientId);
 
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
       }));
 
       const { error: insertErr } = await supabaseAdmin
-        .from('competitor_scrapes')
+        .from('gbp_competitor_scrapes')
         .insert(competitorInserts);
 
       if (insertErr) {
@@ -313,7 +313,7 @@ export async function GET(request: NextRequest) {
       };
 
       const { error: clientUpdateErr } = await supabaseAdmin
-        .from('clients')
+        .from('gbp_clients')
         .update({ onboarding_details: updatedDetails })
         .eq('id', clientId);
 

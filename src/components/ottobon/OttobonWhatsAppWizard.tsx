@@ -181,7 +181,7 @@ export default function OttobonWhatsAppWizard() {
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const { data } = await supabase.from('clients').select('*').order('company_name', { ascending: true });
+        const { data } = await supabase.from('gbp_clients').select('*').order('company_name', { ascending: true });
         if (data) setExistingClients(data);
       } catch (e) {
         console.error('Error fetching clients:', e);
@@ -435,7 +435,7 @@ export default function OttobonWhatsAppWizard() {
         };
 
         const { error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .update({
             company_name: hospitalName,
             contact_email: supportEmail,
@@ -448,7 +448,7 @@ export default function OttobonWhatsAppWizard() {
         dbError = error;
       } else {
         const { data, error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .insert([
             {
               company_name: hospitalName,
@@ -476,7 +476,7 @@ export default function OttobonWhatsAppWizard() {
       // --- NEW: INSERT INTO whatsapp_automation_intakes TABLE ---
       if (newClientId) {
         const { error: waError } = await supabase
-          .from('whatsapp_automation_intakes')
+          .from('gbp_whatsapp_automation_intakes')
           .insert({
             client_id: newClientId,
             form_data: payload,

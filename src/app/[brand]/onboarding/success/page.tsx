@@ -32,6 +32,7 @@ function OnboardingSuccessContent() {
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [locationSaved, setLocationSaved] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   useEffect(() => {
     if (!clientId) {
@@ -43,7 +44,7 @@ function OnboardingSuccessContent() {
     const fetchClientData = async () => {
       try {
         const { data, error: dbError } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .select('*')
           .eq('id', clientId)
           .single();
@@ -57,7 +58,9 @@ function OnboardingSuccessContent() {
           fetch(`/api/automation/get-locations?client_id=${clientId}`)
             .then(res => res.json())
             .then(locData => {
-              if (locData.locations) {
+              if (locData.error) {
+                setLocationError(locData.error);
+              } else if (locData.locations) {
                 setGoogleLocations(locData.locations);
                 if (locData.locations.length > 0) {
                   setSelectedLocationId(locData.locations[0].name);
@@ -115,7 +118,7 @@ function OnboardingSuccessContent() {
   }
 
   const isWebsiteOnboarding = type === 'website' || client.onboarding_details?.type === 'website_onboarding';
-  const isOttobon = false;
+  const isOttobon = client.onboarding_details?.brand === 'ottobon' || client.onboarding_details?.business_type === 'education' || client.onboarding_details?.business_type === 'Educational Institute';
 
   if (isWebsiteOnboarding) {
     const badgeStyleWeb = isOttobon
@@ -341,6 +344,11 @@ function OnboardingSuccessContent() {
                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                   <p className="text-xs font-bold text-emerald-800">Location securely linked! Our system will now manage this profile.</p>
+                </div>
+              ) : locationError ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                  <BadgeAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                  <p className="text-xs font-bold text-red-800 leading-relaxed">{locationError}</p>
                 </div>
               ) : googleLocations.length === 0 ? (
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-800 leading-relaxed">

@@ -12,7 +12,7 @@ export default async function BrandOnboardingHub({ params }: PageProps) {
   // Await the params to resolve them safely for Server Components in Next.js 15+
   const { brand } = await Promise.resolve(params);
 
-  if (brand !== 'medcy') {
+  if (brand !== 'medcy' && brand !== 'ottobon') {
     notFound();
   }
 

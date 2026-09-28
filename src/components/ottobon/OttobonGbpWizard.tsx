@@ -56,7 +56,7 @@ export default function OttobonGbpWizard() {
 
     const fetchClients = async () => {
       try {
-        const { data } = await supabase.from('clients').select('*').order('company_name', { ascending: true });
+        const { data } = await supabase.from('gbp_clients').select('*').order('company_name', { ascending: true });
         if (data) setExistingClients(data);
       } catch (e) {
         console.error('Error fetching clients:', e);
@@ -279,7 +279,7 @@ export default function OttobonGbpWizard() {
         };
 
         const { data, error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .update({
             company_name: formData.companyName,
             contact_email: formData.contactEmail,
@@ -300,7 +300,7 @@ export default function OttobonGbpWizard() {
         dbError = error;
       } else {
         const { data, error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .insert([
             {
               company_name: formData.companyName,
@@ -556,14 +556,13 @@ export default function OttobonGbpWizard() {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700">Website URL</label>
+                  <label className="block text-sm font-semibold text-slate-700">Website URL (Optional)</label>
                   <div className="mt-1.5 relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       <ArrowRight className="h-4 w-4" />
                     </div>
                     <input
                       type="url"
-                      required
                       placeholder="https://www.example.com"
                       className={`block w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 py-3 text-slate-900 placeholder-slate-400 ${focusBorder} text-sm transition-all shadow-xs`}
                       value={formData.website}

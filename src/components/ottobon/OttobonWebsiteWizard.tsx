@@ -213,7 +213,7 @@ export default function OttobonWebsiteWizard() {
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const { data } = await supabase.from('clients').select('*').order('company_name', { ascending: true });
+        const { data } = await supabase.from('gbp_clients').select('*').order('company_name', { ascending: true });
         if (data) setExistingClients(data);
       } catch (e) {
         console.error('Error fetching clients:', e);
@@ -351,7 +351,7 @@ export default function OttobonWebsiteWizard() {
         };
 
         const { data, error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .update({
             company_name: formData.businessName,
             contact_email: formData.email,
@@ -368,7 +368,7 @@ export default function OttobonWebsiteWizard() {
         dbError = error;
       } else {
         const { data, error } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .insert([
             {
               company_name: formData.businessName,
@@ -397,7 +397,7 @@ export default function OttobonWebsiteWizard() {
 
       // --- NEW: INSERT INTO website_intakes TABLE ---
       const { error: websiteError } = await supabase
-        .from('website_intakes')
+        .from('gbp_website_intakes')
         .insert({
           client_id: newClient.id,
           form_data: formData,

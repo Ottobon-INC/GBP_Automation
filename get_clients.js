@@ -6,7 +6,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function run() {
   const { data, error } = await supabase
-    .from('clients')
+    .from('gbp_clients')
     .select('id, company_name, contact_phone, onboarding_details')
     .eq('id', '01ed6ff0-7700-4cf4-8954-a9b9c48b7a12')
     .single();

@@ -1,6 +1,6 @@
 import React from 'react';
 import BrandSelectorHub from '@/components/BrandSelectorHub';
 
-export default function Home() {
+export default function OnboardingRootPage() {
   return <BrandSelectorHub />;
 }

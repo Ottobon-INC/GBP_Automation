@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Update client onboarding details status if present
     const { data: client } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('onboarding_details')
       .eq('id', client_id)
       .single();
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         completed_step: 'gbp_linked'
       };
       await supabaseAdmin
-        .from('clients')
+        .from('gbp_clients')
         .update({ onboarding_details: updatedDetails })
         .eq('id', client_id);
 

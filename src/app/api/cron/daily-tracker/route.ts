@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Get all clients
     const { data: clients, error: fetchErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('id, company_name, target_keywords, service_area, onboarding_details, gbp_automations(target_keywords)');
 
     if (fetchErr || !clients) {
@@ -202,7 +202,7 @@ export async function GET(request: NextRequest) {
 
       // Write back to database
       const { error: updateErr } = await supabaseAdmin
-        .from('clients')
+        .from('gbp_clients')
         .update({ onboarding_details: updatedDetails })
         .eq('id', client.id);
 

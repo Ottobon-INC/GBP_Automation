@@ -203,6 +203,7 @@ ${
 }
 
 LENGTH: Keep the response concise, brief, and under 350 characters.
+SIGN-OFF: Sign off simply as "The Team at ${clientName}" or just "${clientName}". NEVER use placeholders like "[Your Name]", "[Title]", or "[Manager Name]". The response must be fully complete and ready to publish as-is.
 `;
 
   // 1. OpenAI Fallback / Test Mode Execution
@@ -395,3 +396,107 @@ Respond ONLY with a valid JSON object in this exact format (no markdown code blo
   }
 }
 
+export interface SalesStoryResponse {
+  full_pitch_script: string;
+  competitor_weaknesses: string[];
+  client_opportunities: string[];
+  recommended_categories: {
+    primary: string;
+    secondary: string[];
+  };
+  sample_post: string;
+}
+
+/**
+ * Generates a non-technical sales pitch based on scraped GBP data to help sell the service to prospects.
+ */
+export async function generateSalesStory(
+  businessName: string,
+  businessType: string,
+  targetKeywords: string[],
+  exactRank: number | string,
+  clientData: any, // The first scraped result
+  competitorsData: CompetitorDataForAI[] // The remaining scraped results
+): Promise<SalesStoryResponse> {
+  const competitorBlock = competitorsData
+    .map((c, i) => {
+      return `Competitor #${i + 1}:\nName: ${c.competitor_name}\nCategories: ${(c.categories_found || []).join(', ')}\nReviews:\n${c.reviews_scraped}`;
+    })
+    .join('\n\n====================\n\n');
+
+  const clientBlock = `Name: ${clientData.competitor_name || businessName}\nCurrent Rank for Target Keyword: #${exactRank}\nCategories: ${(clientData.categories_found || []).join(', ')}\nReviews:\n${clientData.reviews_scraped || 'No reviews available.'}`;
+
+  const prompt = `
+You are an expert sales consultant for a local SEO automation agency specializing in ${businessType}.
+We are pitching our services to a prospect named "${businessName}".
+Below is their current Google Business Profile data, followed by their top 3 competitors in their local area.
+
+CLIENT PROFILE:
+${clientBlock}
+Client Selected Target Keywords: ${targetKeywords.join(', ')}
+
+COMPETITOR DATA:
+${competitorBlock}
+
+Analyze this data and generate a highly compelling, NON-TECHNICAL sales story to pitch our services. 
+
+Generate a JSON object matching this schema exactly. NO MARKDOWN, JUST JSON:
+{
+  "full_pitch_script": "Write a highly persuasive 4-5 paragraph sales script that the sales rep can literally read out loud. It MUST flow in this exact order: 1) Start by explaining that we are sending them their GBP (Google Business Profile) audit report to show exactly 'where they are currently at' (mention their rank #${exactRank} and how they are losing leads). 2) Emphasize that if they onboard with us, we will help them grow digitally and generate significantly more leads. 3) Explain that if they already have a website, we will do the SEO to push it to the top; if they don't have one, we will build a premium one for them. 4) Explain the purpose of our WhatsApp automation and how it will lock their customers in and drive immediate bookings. 5) Mention our support with Instagram to help them digitally grow and dominate their market. DO NOT use technical SEO jargon.",
+  "competitor_weaknesses": ["Identify 3 specific weaknesses or complaints found in competitor reviews."],
+  "client_opportunities": ["Identify 3 actionable ways the client can exploit these weaknesses (e.g., highlighting fast service if competitors are slow)."],
+  "recommended_categories": {
+    "primary": "The absolute best primary Google Business category for them",
+    "secondary": ["2 or 3 other official Google categories to add"]
+  },
+  "sample_post": "Write a compelling, ready-to-publish Google Post (under 1000 chars) that highlights one of the client opportunities to immediately steal traffic from competitors."
+}
+`;
+
+  // 1. OpenAI Fallback / Test Mode Execution
+  if (OPENAI_API_KEY) {
+    try {
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini',
+          response_format: { type: 'json_object' },
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      const responseText = response.data.choices[0].message.content;
+      return JSON.parse(responseText) as SalesStoryResponse;
+    } catch (err: any) {
+      console.error('OpenAI sales story failed:', err.response?.data || err.message);
+      throw new Error(`OpenAI execution failed: ${err.message}`);
+    }
+  }
+
+  // 2. Default Gemini Execution
+  if (!genAI) {
+    throw new Error('GEMINI_API_KEY is not defined in environment variables');
+  }
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+    },
+  });
+
+  try {
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    return JSON.parse(responseText) as SalesStoryResponse;
+  } catch (err: any) {
+    console.error('Failed to generate sales story:', err.message);
+    throw new Error('AI failed to generate the sales story. Please try again.');
+  }
+}

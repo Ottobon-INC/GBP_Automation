@@ -41,7 +41,7 @@ function CreationStatusContent() {
     const fetchClientData = async () => {
       try {
         const { data, error: dbError } = await supabase
-          .from('clients')
+          .from('gbp_clients')
           .select('*')
           .eq('id', clientId)
           .single();

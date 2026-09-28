@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Fetch Client Info
     const { data: client, error: clientErr } = await supabaseAdmin
-      .from('clients')
+      .from('gbp_clients')
       .select('company_name, onboarding_details')
       .eq('id', clientId)
       .single();
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     for (const r of googleReviews) {
       // 5. Sync review to public.reviews database (check if already exists)
       const { data: existingReview } = await supabaseAdmin
-        .from('reviews')
+        .from('gbp_reviews')
         .select('*')
         .eq('client_id', clientId)
         .eq('google_review_id', r.reviewId)
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       if (!existingReview) {
         // Insert new review row
         const { data: insertedReview, error: insertErr } = await supabaseAdmin
-          .from('reviews')
+          .from('gbp_reviews')
           .insert([
             {
               client_id: clientId,
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
 
         // Update reply fields in Supabase
         const { error: updateErr } = await supabaseAdmin
-          .from('reviews')
+          .from('gbp_reviews')
           .update({
             ai_draft_reply: aiReply,
             posted_reply: aiReply,
